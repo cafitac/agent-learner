@@ -1,0 +1,45 @@
+{
+  "name": "@cafibot/agent-learner",
+  "version": "0.1.0",
+  "description": "npm delivery wrapper for the agent-learner Python core",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "agent-learner": "bin/agent-learner.cjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "npm run test:wrapper",
+    "test:wrapper": "node --test",
+    "pack:check": "npm pack --dry-run",
+    "doctor": "node ./bin/agent-learner.cjs doctor"
+  },
+  "keywords": [
+    "agent",
+    "codex",
+    "claude",
+    "plugin",
+    "wrapper",
+    "learning"
+  ],
+  "homepage": "https://github.com/cafibot/agent-learner",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cafibot/agent-learner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cafibot/agent-learner/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "npm@10.9.2"
+}
