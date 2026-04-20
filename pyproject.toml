@@ -1,0 +1,40 @@
+[project]
+name = "agent-learner"
+version = "0.1.0"
+description = "Reusable self-learning engine for agent workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "cafibot" }]
+keywords = ["agent", "learning", "workflow", "codex", "claude", "automation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/cafibot/agent-learner"
+Repository = "https://github.com/cafibot/agent-learner"
+Issues = "https://github.com/cafibot/agent-learner/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+agent-learner = "agent_learner.cli.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
