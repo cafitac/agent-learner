@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.2.0rc2] - 2026-04-21
+
 ## [0.2.0rc1] - 2026-04-21
 
 ### Added

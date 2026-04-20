@@ -1,6 +1,6 @@
 [project]
 name = "agent-learner"
-version = "0.2.0rc1"
+version = "0.2.0rc2"
 description = "Reusable self-learning engine for agent workflows"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -12,6 +12,7 @@ PYPROJECT_PATH = ROOT / "pyproject.toml"
 PACKAGE_JSON_PATH = ROOT / "package.json"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 VERSION_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:[-a-zA-Z0-9.]+)?$")
+PRERELEASE_RC_RE = re.compile(r"^(?P<base>\d+\.\d+\.\d+)rc(?P<num>\d+)$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,9 +45,16 @@ def bump_pyproject(version: str, dry_run: bool) -> None:
     write_text(PYPROJECT_PATH, updated, dry_run)
 
 
+def npm_version_for(version: str) -> str:
+    match = PRERELEASE_RC_RE.match(version)
+    if match:
+        return f"{match.group('base')}-rc{match.group('num')}"
+    return version
+
+
 def bump_package_json(version: str, dry_run: bool) -> None:
     payload = json.loads(read_text(PACKAGE_JSON_PATH))
-    payload["version"] = version
+    payload["version"] = npm_version_for(version)
     content = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     write_text(PACKAGE_JSON_PATH, content, dry_run)
 
@@ -73,6 +81,7 @@ def main() -> int:
         "version": args.version,
         "release_date": args.release_date,
         "dry_run": args.dry_run,
+        "npm_version": npm_version_for(args.version),
         "updated": [
             str(PYPROJECT_PATH.relative_to(ROOT)),
             str(PACKAGE_JSON_PATH.relative_to(ROOT)),

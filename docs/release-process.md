@@ -77,3 +77,5 @@ python scripts/release/release_check.py --version X.Y.Z
 ```
 
 Use `--skip-commands` for a faster structural check or `--json` for automation.
+
+Note: the Python package keeps prerelease form like `0.2.0rc2`, while the npm wrapper is normalized to npm-safe semver like `0.2.0-rc2`.
