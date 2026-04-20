@@ -1,6 +1,6 @@
 {
-  "name": "@cafibot/agent-learner",
-  "version": "0.2.0rc1",
+  "name": "@cafitac/agent-learner",
+  "version": "0.2.0-rc1",
   "description": "npm delivery wrapper for the agent-learner Python core",
   "license": "MIT",
   "type": "commonjs",
@@ -30,13 +30,13 @@
     "wrapper",
     "learning"
   ],
-  "homepage": "https://github.com/cafibot/agent-learner",
+  "homepage": "https://github.com/cafitac/agent-learner",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cafibot/agent-learner.git"
+    "url": "git+https://github.com/cafitac/agent-learner.git"
   },
   "bugs": {
-    "url": "https://github.com/cafibot/agent-learner/issues"
+    "url": "https://github.com/cafitac/agent-learner/issues"
   },
   "publishConfig": {
     "access": "public"

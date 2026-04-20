@@ -41,7 +41,7 @@ def build_plan(version: str) -> dict[str, object]:
             {
                 "tag": f"npm-rc-v{version}",
                 "workflow": ".github/workflows/npm-prerelease.yml",
-                "post_check": "npx @cafibot/agent-learner@next doctor",
+                "post_check": "npx @cafitac/agent-learner@next doctor",
             },
         ],
         "final_tags": [f"v{version}", f"py-v{version}", f"npm-v{version}"],

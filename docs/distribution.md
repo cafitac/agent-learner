@@ -3,7 +3,7 @@
 `agent-learner` now has two delivery layers:
 
 1. **Python core** — the authoritative engine (`agent-learner` on PyPI)
-2. **npm wrapper** — plugin-style installation UX (`@cafibot/agent-learner` on npm)
+2. **npm wrapper** — plugin-style installation UX (`@cafitac/agent-learner` on npm)
 
 ## Why both exist
 
@@ -19,7 +19,7 @@ Publish in this order:
    - publish `agent-learner` Python package
    - verify `uvx --from agent-learner agent-learner --help`
 2. **npm second**
-   - publish `@cafibot/agent-learner`
+   - publish `@cafitac/agent-learner`
    - wrapper published-mode depends on the Python package already being resolvable by `uvx`
 
 If npm is published before PyPI, wrapper commands outside the repo checkout will fail because published-mode shells into:

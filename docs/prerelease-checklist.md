@@ -51,8 +51,8 @@ Wait for `.github/workflows/npm-prerelease.yml` to pass.
 Then verify:
 
 ```bash
-npx @cafibot/agent-learner@next version
-npx @cafibot/agent-learner@next doctor
+npx @cafitac/agent-learner@next version
+npx @cafitac/agent-learner@next doctor
 ```
 
 ## What to check

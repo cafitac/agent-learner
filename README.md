@@ -248,8 +248,8 @@ CI now also installs the built wheel into a fresh environment and reruns CLI smo
 Installable npm wrapper direction:
 
 ```bash
-npx @cafibot/agent-learner codex install
-npx @cafibot/agent-learner codex qa
+npx @cafitac/agent-learner codex install
+npx @cafitac/agent-learner codex qa
 ```
 
 This wrapper uses the Python core via `uv run` in the repo checkout and is designed to use `uvx --from agent-learner` after the Python package is published.
@@ -257,8 +257,8 @@ This wrapper uses the Python core via `uv run` in the repo checkout and is desig
 Wrapper UX helpers:
 
 ```bash
-npx @cafibot/agent-learner doctor
-npx @cafibot/agent-learner version
+npx @cafitac/agent-learner doctor
+npx @cafitac/agent-learner version
 ```
 
 `doctor` checks whether node/npm/uv/python are available and whether the wrapper will run in local-repo mode or published `uvx` mode.
@@ -270,8 +270,8 @@ See `docs/release-process.md` for tag conventions, changelog expectations, and t
 Lane-specific wrapper health checks:
 
 ```bash
-npx @cafibot/agent-learner codex doctor --target /path/to/consumer-repo
-npx @cafibot/agent-learner claude doctor --target /path/to/consumer-repo
+npx @cafitac/agent-learner codex doctor --target /path/to/consumer-repo
+npx @cafitac/agent-learner claude doctor --target /path/to/consumer-repo
 ```
 
 These commands verify the expected adapter files/directories exist after installation and suggest the correct install command if anything is missing.

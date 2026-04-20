@@ -4,7 +4,7 @@ This repo has three release lanes:
 
 1. **GitHub release** for source + built artifact visibility
 2. **PyPI** for the Python core package (`agent-learner`)
-3. **npm** for the plugin-style wrapper (`@cafibot/agent-learner`)
+3. **npm** for the plugin-style wrapper (`@cafitac/agent-learner`)
 
 ## Tag conventions
 
