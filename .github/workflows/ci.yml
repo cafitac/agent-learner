@@ -27,12 +27,12 @@ jobs:
       - name: Sync environment
         run: uv sync --extra dev --python ${{ matrix.python-version }}
       - name: Run tests
-        run: uv run pytest -q
+        run: uv run --python ${{ matrix.python-version }} --extra dev pytest -q
       - name: Run adapter smoke QA
         if: matrix.python-version == '3.13'
         run: |
-          uv run agent-learner qa-codex-smoke
-          uv run agent-learner qa-claude-smoke
+          uv run --python ${{ matrix.python-version }} --extra dev agent-learner qa-codex-smoke
+          uv run --python ${{ matrix.python-version }} --extra dev agent-learner qa-claude-smoke
       - name: Build distributions
         run: uv build
       - name: Verify installed wheel smoke

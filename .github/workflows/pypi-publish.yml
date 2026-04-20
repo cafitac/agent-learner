@@ -29,11 +29,11 @@ jobs:
       - name: Sync Python environment
         run: uv sync --extra dev --python 3.13
       - name: Run Python tests
-        run: uv run pytest -q
+        run: uv run --python 3.13 --extra dev pytest -q
       - name: Run source-tree smoke QA
         run: |
-          uv run agent-learner qa-codex-smoke
-          uv run agent-learner qa-claude-smoke
+          uv run --python 3.13 --extra dev agent-learner qa-codex-smoke
+          uv run --python 3.13 --extra dev agent-learner qa-claude-smoke
       - name: Build Python distributions
         run: uv build
       - name: Verify installed wheel smoke

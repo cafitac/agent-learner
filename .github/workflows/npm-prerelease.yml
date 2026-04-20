@@ -30,7 +30,7 @@ jobs:
       - name: Sync Python environment
         run: uv sync --extra dev --python 3.13
       - name: Run Python tests
-        run: uv run pytest -q
+        run: uv run --python 3.13 --extra dev pytest -q
       - name: Publish npm prerelease
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
