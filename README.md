@@ -5,12 +5,22 @@ Reusable self-learning engine for agent workflows.
 `agent-learner` provides a generic self-learning core plus installable
 adapter overlays for Codex and Claude-style environments.
 
+[![CI](https://github.com/cafitac/agent-learner/actions/workflows/ci.yml/badge.svg)](https://github.com/cafitac/agent-learner/actions/workflows/ci.yml)
+[![Release](https://github.com/cafitac/agent-learner/actions/workflows/release.yml/badge.svg)](https://github.com/cafitac/agent-learner/actions/workflows/release.yml)
+
 ## What it provides
 - generic learning lifecycle engine
 - aggressive auto-promotion pipeline
 - Codex adapter plugin
 - Claude adapter plugin
 - draft -> approved -> needs_review -> deprecated lifecycle
+
+## Why this exists
+
+Many agent setups accumulate useful learning behavior inside a single
+workspace, but the learning engine, session wrap-up logic, and adapter
+install flow are often too coupled to one repo. `agent-learner` extracts
+that logic into a reusable OSS foundation.
 
 ## Repository shape
 - `src/agent_learner/` - core package
@@ -49,3 +59,11 @@ Scaffold in progress with:
 - one-command bootstrap
 - lifecycle and bootstrap tests
 - install and quickstart docs
+
+## Docs
+
+- `docs/install.md`
+- `docs/quickstart.md`
+- `docs/architecture.md`
+- `examples/consumer-repo-layout.md`
+- `CONTRIBUTING.md`
