@@ -4,18 +4,28 @@ Thanks for considering a contribution to `agent-learner`.
 
 ## Development setup
 
+Preferred with uv:
+
+```bash
+uv sync --extra dev
+```
+
+This creates and manages `.venv/` automatically.
+
+Manual venv alternative:
+
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install -e .[dev]
 ```
 
 ## Common commands
 
 ```bash
-python -m pytest -q
-python -m build
-agent-learner --help
+uv run pytest -q
+uv build
+uv run agent-learner --help
 ```
 
 ## Contribution guidelines
