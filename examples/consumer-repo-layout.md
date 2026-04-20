@@ -17,10 +17,15 @@ consumer-repo/
 |-- .codex/
 |   |-- hooks.json
 |   |-- references/
+|   |   |-- learning/
+|   |   `-- scripts/
 |   `-- skills/
 |-- .omx/
 |   `-- wiki/
 `-- .gitignore
 ```
 
-The important guarantee is that Codex-only and Claude-only installs can be done independently.
+The important guarantees are:
+- Codex-only and Claude-only installs can be done independently
+- approved Codex learning rules stay file-native under `.codex/references/learning/approved/`
+- prompt-time context is injected ephemerally per task rather than appended to the persistent system prompt
