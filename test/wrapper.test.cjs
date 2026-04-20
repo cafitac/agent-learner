@@ -89,5 +89,5 @@ test('laneDoctorChecks reports healthy claude install surfaces', () => {
 
 test('wrapper version comes from package json', () => {
   const packageRoot = path.resolve(__dirname, '..');
-  assert.equal(getWrapperVersion(packageRoot), '0.1.0');
+  assert.equal(getWrapperVersion(packageRoot), require('../package.json').version);
 });

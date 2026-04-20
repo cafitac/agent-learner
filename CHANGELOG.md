@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.2.0rc1] - 2026-04-21
+
 ### Added
 - npm wrapper scaffold for plugin-style delivery
 - uv-based local/CI workflow
