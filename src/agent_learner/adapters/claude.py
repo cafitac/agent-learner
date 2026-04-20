@@ -12,6 +12,8 @@ from pathlib import Path
 from datetime import datetime
 import json
 import os
+import shutil
+import subprocess
 import sys
 
 
@@ -30,12 +32,34 @@ def read_json() -> dict:
         return {}
 
 
+def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = None) -> None:
+    cli = shutil.which("agent-learner")
+    base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
+    try:
+        subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
+    except Exception:
+        return
+
+
+def emit_shared_event(project_root: Path, payload: dict) -> None:
+    session_id = payload.get("session_id") or datetime.now().strftime("%Y%m%d-%H%M%S")
+    transcript_path = payload.get("transcript_path") or payload.get("transcriptPath") or None
+    argv = ["capture-event", "--project-root", str(project_root), "--adapter", "claude", "--event-name", "session_end", "--session-id", session_id]
+    if transcript_path:
+        argv.extend(["--transcript-path", transcript_path])
+    run_shared_cli(project_root, argv, payload)
+    run_shared_cli(project_root, ["process-events", "--project-root", str(project_root), "--adapter", "claude", "--limit", "1"], None)
+
+
 def main() -> int:
     payload = read_json()
     cwd = Path(payload.get("cwd") or os.getcwd()).resolve()
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     learning_root = cwd / ".claude" / "learned-feedback"
     learning_root.mkdir(parents=True, exist_ok=True)
+    ensure_events = cwd / ".agent-learner" / "events" / "claude"
+    ensure_events.mkdir(parents=True, exist_ok=True)
+    emit_shared_event(cwd, payload)
     (learning_root / "_session-end.md").write_text(f"# Session End\\n\\n- captured_at: {ts}\\n", encoding="utf-8")
     return 0
 
@@ -74,6 +98,7 @@ def install_claude_adapter(target_root: Path) -> list[Path]:
     ensure_dir(claude_root / "skills" / "feedback-learning")
     ensure_dir(claude_root / "hooks")
     ensure_dir(claude_root / "learned-feedback")
+    ensure_dir(target_root / ".agent-learner" / "events" / "claude")
 
     written.append(write_text(claude_root / "hooks" / "auto_session_learning.py", AUTO_SESSION_LEARNING))
     written.append(write_text(claude_root / "skills" / "session-wrap" / "SKILL.md", SESSION_WRAP))

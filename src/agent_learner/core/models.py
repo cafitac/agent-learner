@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timezone
+from typing import Literal
+
+RuleStatus = Literal["draft", "approved", "needs_review", "deprecated"]
+RulePriority = Literal["low", "medium", "high"]
+RuleConfidence = Literal["low", "medium", "high"]
+RuleModelDependency = Literal["none", "low", "high"]
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def utc_today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 @dataclass(slots=True)
@@ -13,10 +26,37 @@ class LearningRule:
     scope: str
     good_pattern: str
     avoid_pattern: str
-    status: str = "draft"
+    summary: str = ""
+    tags: list[str] = field(default_factory=list)
+    triggers: list[str] = field(default_factory=list)
+    task_types: list[str] = field(default_factory=list)
+    file_patterns: list[str] = field(default_factory=list)
+    projects: list[str] = field(default_factory=lambda: ["*"])
+    languages: list[str] = field(default_factory=list)
+    frameworks: list[str] = field(default_factory=list)
+    validated_on_models: list[str] = field(default_factory=list)
+    excluded_models: list[str] = field(default_factory=list)
+    model_dependency: RuleModelDependency = "low"
+    priority: RulePriority = "medium"
+    confidence: RuleConfidence = "medium"
+    status: RuleStatus = "draft"
+    source: str | None = None
+    evidence: str | None = None
     first_seen_at: str | None = None
     last_seen_at: str | None = None
+    updated_at: str | None = None
+    last_used: str | None = None
     promote_count: int = 0
+    use_count: int = 0
+    token_estimate: int = 0
+
+    def ensure_defaults(self) -> None:
+        if not self.summary:
+            self.summary = self.rule
+        if not self.projects:
+            self.projects = ["*"]
+        if not self.first_seen_at:
+            self.first_seen_at = utc_now_iso()
 
 
 @dataclass(slots=True)
