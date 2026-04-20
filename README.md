@@ -10,7 +10,7 @@ adapter overlays for Codex and Claude-style environments.
 
 ## What it provides
 - generic learning lifecycle engine
-- aggressive auto-promotion pipeline
+- retrieval-driven prompt injection for Codex
 - Codex adapter plugin
 - Claude adapter plugin
 - draft -> approved -> needs_review -> deprecated lifecycle
@@ -45,10 +45,17 @@ pipx install .
 agent-learner bootstrap --target /path/to/repo
 ```
 
-Alternative during development:
+Recommended during development with uv:
 
 ```bash
-python3 -m pip install -e .
+uv sync --extra dev
+uv run agent-learner bootstrap --target /path/to/repo
+```
+
+Alternative with pip:
+
+```bash
+python3 -m pip install -e .[dev]
 agent-learner bootstrap --target /path/to/repo
 ```
 
@@ -59,12 +66,19 @@ Scaffold in progress with:
 - one-command bootstrap
 - lifecycle and bootstrap tests
 - install and quickstart docs
+- uv-based local + CI workflow
+- npm wrapper scaffold for plugin-style delivery
 
 ## Docs
 
 - `docs/install.md`
 - `docs/quickstart.md`
 - `docs/architecture.md`
+- `docs/adapter-convergence.md`
+- `docs/qa-codex-smoke.md`
+- `docs/distribution.md`
+- `docs/release-process.md`
+- `docs/prerelease-checklist.md`
 - `examples/consumer-repo-layout.md`
 - `CONTRIBUTING.md`
 
@@ -149,6 +163,7 @@ Current implemented focus:
 - Codex adapter installation
 - Claude adapter installation
 - one-command bootstrap
+- per-turn Codex learning context retrieval via `UserPromptSubmit`
 - file-based lifecycle:
   - `inbox`
   - `drafts`
@@ -158,6 +173,10 @@ Current implemented focus:
 - automatic lifecycle transitions
 - dashboard updates
 - adapter-independent installation paths
+- retrieval ranking for approved learned rules
+- token-budget-aware Codex context injection
+- context-aware and model-aware rule gating
+- shared sweep/deprecation lifecycle for stored rules
 
 ## What `agent-learner` is not
 
@@ -177,23 +196,7 @@ At least in its current form, `agent-learner` is **not**:
 The long-term direction is broader than file storage or simple memory
 recall.
 
-### 1. Retrieval optimization
-
-Planned work includes:
-
-- faster retrieval paths
-- smarter selection of learned assets
-- ranking logic for reusable rules and references
-
-### 2. Token-aware retrieval
-
-Planned work includes:
-
-- token-budget-aware context selection
-- minimizing unnecessary asset injection
-- choosing the smallest useful learned context for the active task
-
-### 3. Autoresearch-assisted refinement
+### 1. Autoresearch-assisted refinement
 
 Planned work includes:
 
@@ -201,7 +204,7 @@ Planned work includes:
 - separating weak heuristics from durable rules
 - improving promotion quality through stronger evidence gathering
 
-### 4. Training-ready export paths
+### 2. Training-ready export paths
 
 Planned work includes:
 
@@ -210,7 +213,7 @@ Planned work includes:
 - preparing a path toward supervised or adapter-based fine-tuning
   workflows
 
-### 5. Broader adapter ecosystem
+### 3. Broader adapter ecosystem
 
 Planned work includes:
 
@@ -225,6 +228,8 @@ Planned work includes:
 
 - learning asset lifecycle
 - file-native promoted rules
+- retrieval ranking for approved rules
+- token-budget-aware Codex context injection
 - Codex adapter
 - Claude adapter
 - bootstrap installation flow
@@ -232,8 +237,49 @@ Planned work includes:
 
 ### Planned later
 
-- retrieval speed optimization
-- token-aware retrieval
-- autoresearch-assisted knowledge refinement
+- richer autoresearch-assisted refinement
 - fine-tuning or dataset export workflows
 - wider adapter support
+
+CI now runs both `qa-codex-smoke` and `qa-claude-smoke` on Python 3.13 so the adapter-level smoke paths stay covered in automation.
+
+CI now also installs the built wheel into a fresh environment and reruns CLI smoke checks so package-install behavior is verified, not just source-tree execution.
+
+Installable npm wrapper direction:
+
+```bash
+npx @cafibot/agent-learner codex install
+npx @cafibot/agent-learner codex qa
+```
+
+This wrapper uses the Python core via `uv run` in the repo checkout and is designed to use `uvx --from agent-learner` after the Python package is published.
+
+Wrapper UX helpers:
+
+```bash
+npx @cafibot/agent-learner doctor
+npx @cafibot/agent-learner version
+```
+
+`doctor` checks whether node/npm/uv/python are available and whether the wrapper will run in local-repo mode or published `uvx` mode.
+
+Release automation now has separate `pypi-publish` and `npm-publish` workflows so the Python core can ship before the npm wrapper.
+
+See `docs/release-process.md` for tag conventions, changelog expectations, and the recommended GitHub/PyPI/npm release order.
+
+Lane-specific wrapper health checks:
+
+```bash
+npx @cafibot/agent-learner codex doctor --target /path/to/consumer-repo
+npx @cafibot/agent-learner claude doctor --target /path/to/consumer-repo
+```
+
+These commands verify the expected adapter files/directories exist after installation and suggest the correct install command if anything is missing.
+
+See `docs/prerelease-checklist.md` for the exact TestPyPI -> npm next rehearsal sequence before final release tags.
+
+Release readiness helper:
+
+```bash
+python scripts/release/release_check.py --version 0.2.0
+```

@@ -24,7 +24,10 @@ Repository = "https://github.com/cafibot/agent-learner"
 Issues = "https://github.com/cafibot/agent-learner/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "build>=1.2"]
+
+[tool.uv]
+package = true
 
 [project.scripts]
 agent-learner = "agent_learner.cli.main:main"
