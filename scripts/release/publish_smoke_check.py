@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -24,7 +25,7 @@ REQUIRED_PATHS = [
 RECOMMENDED_COMMANDS = [
     ["npm", "test"],
     ["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_pipeline.py", "tests/test_lifecycle.py", "tests/test_installers.py", "tests/test_cli_bootstrap.py", "tests/test_retrieval.py"],
-    ["python3", "-m", "agent_learner.cli.main", "doctor", "--project-root", str(ROOT), "--format", "json"],
+    ["uv", "run", "--extra", "web", "agent-learner", "doctor", "--project-root", str(ROOT), "--format", "json"],
     ["npm", "run", "build"],
 ]
 
@@ -43,9 +44,19 @@ def tool_status(name: str) -> dict[str, object]:
     return {"available": True, "path": path}
 
 
+def command_env(command: list[str]) -> dict[str, str] | None:
+    if command[:3] == ["python3", "-m", "agent_learner.cli.main"]:
+        env = os.environ.copy()
+        src_path = str(ROOT / "src")
+        current = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = src_path if not current else f"{src_path}{os.pathsep}{current}"
+        return env
+    return None
+
+
 def run_command(command: list[str]) -> dict[str, object]:
     cwd = ROOT / "frontend" if command[:2] == ["npm", "run"] and "build" in command else ROOT
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+    result = subprocess.run(command, cwd=cwd, env=command_env(command), capture_output=True, text=True, check=False)
     return {
         "command": " ".join(command),
         "ok": result.returncode == 0,

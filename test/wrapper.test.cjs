@@ -68,7 +68,23 @@ test('buildExecutionPlan falls back to uvx without local core', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'qa', target: '/tmp/repo', json: false }, fakeRoot, '/tmp/repo');
   assert.equal(plan.mode, 'published');
   assert.equal(plan.command, 'uvx');
-  assert.deepEqual(plan.args, ['--from', 'agent-learner', 'agent-learner', 'qa-codex-smoke', '--project-root', '/tmp/repo']);
+  assert.deepEqual(plan.args, ['--from', 'agent-learner[web]', 'agent-learner', 'qa-codex-smoke', '--project-root', '/tmp/repo']);
+});
+
+test('buildExecutionPlan honors uvx index override', () => {
+  const fakeRoot = path.join(__dirname, 'fixtures-no-pyproject');
+  const previous = process.env.AGENT_LEARNER_UVX_INDEX_URL;
+  process.env.AGENT_LEARNER_UVX_INDEX_URL = 'https://test.pypi.org/simple';
+  try {
+    const plan = buildExecutionPlan({ type: 'dashboard', projectRoot: '/tmp/repo', build: false, noBuild: false, open: false, port: null }, fakeRoot, '/tmp/repo');
+    assert.deepEqual(plan.args.slice(0, 4), ['--from', 'agent-learner[web]', '--index-url', 'https://test.pypi.org/simple']);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.AGENT_LEARNER_UVX_INDEX_URL;
+    } else {
+      process.env.AGENT_LEARNER_UVX_INDEX_URL = previous;
+    }
+  }
 });
 
 test('buildExecutionPlan maps dashboard to local uv run', () => {

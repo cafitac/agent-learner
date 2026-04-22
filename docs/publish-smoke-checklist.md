@@ -16,6 +16,14 @@ And after publish, use the published-runtime helper:
 python scripts/release/published_runtime_smoke.py --project-root /path/to/consumer-repo --json --skip-commands
 ```
 
+For npm prerelease checks that need to resolve the Python core from TestPyPI,
+set:
+
+```bash
+AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple \
+  npx @cafitac/agent-learner@next dashboard --project-root /path/to/consumer-repo
+```
+
 The goal is simple:
 
 - confirm the Python package installs and runs

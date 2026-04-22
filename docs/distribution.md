@@ -86,6 +86,9 @@ After publishing:
 5. optional Docker path
 
 Use `docs/publish-smoke-checklist.md` as the exact command matrix.
+For npm prerelease checks before the Python core reaches production PyPI, set
+`AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple` so the wrapper can
+resolve the TestPyPI Python core.
 
 
 ## Version coordination

@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.0rc2] - 2026-04-22
+
+### Changed
+- npm published mode now resolves the Python core with the `web` extra by default so dashboard commands include FastAPI dependencies.
+- npm prerelease smoke checks can point `uvx` at TestPyPI via `AGENT_LEARNER_UVX_INDEX_URL` before the Python core reaches production PyPI.
+
 ## [0.3.0rc1] - 2026-04-22
 
 ### Added
