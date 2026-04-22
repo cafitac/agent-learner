@@ -6,6 +6,15 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-22
+
+### Added
+- Top-level wrapper aliases such as `agent-learner install-codex`, `agent-learner install-claude`, `agent-learner rebuild-index`, and `agent-learner bootstrap`.
+- `agent-learner completion bash|zsh` for shell completion scripts and `agent-learner update` for npm-based self-update.
+
+### Changed
+- Wrapper UX now exposes the most common learning setup commands directly instead of forcing `core` or nested adapter syntax first.
+
 ## [0.3.3] - 2026-04-22
 
 ### Fixed

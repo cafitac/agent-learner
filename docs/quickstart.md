@@ -69,3 +69,34 @@ python scripts/release/publish_smoke_check.py --json
 ```
 
 Then follow `docs/publish-smoke-checklist.md`.
+
+
+## Wrapper convenience
+
+Common wrapper aliases now work directly:
+
+```bash
+agent-learner install-codex --target "$PWD"
+agent-learner install-claude --target "$PWD"
+agent-learner rebuild-index --project-root "$PWD"
+agent-learner bootstrap --target "$PWD"
+agent-learner update
+agent-learner completion zsh
+```
+
+
+## Shell completion
+
+Zsh:
+
+```bash
+echo 'source <(agent-learner completion zsh)' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Bash:
+
+```bash
+echo 'source <(agent-learner completion bash)' >> ~/.bashrc
+source ~/.bashrc
+```

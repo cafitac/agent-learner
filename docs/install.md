@@ -261,3 +261,34 @@ npx @cafitac/agent-learner claude doctor --target /path/to/consumer-repo
 ```
 
 These commands verify the expected adapter files/directories exist after installation and suggest the correct install command if anything is missing.
+
+
+## Wrapper convenience
+
+Common wrapper aliases now work directly:
+
+```bash
+agent-learner install-codex --target "$PWD"
+agent-learner install-claude --target "$PWD"
+agent-learner rebuild-index --project-root "$PWD"
+agent-learner bootstrap --target "$PWD"
+agent-learner update
+agent-learner completion zsh
+```
+
+
+## Shell completion
+
+Zsh:
+
+```bash
+echo 'source <(agent-learner completion zsh)' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Bash:
+
+```bash
+echo 'source <(agent-learner completion bash)' >> ~/.bashrc
+source ~/.bashrc
+```

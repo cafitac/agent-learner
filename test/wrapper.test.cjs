@@ -10,6 +10,7 @@ const {
   buildDoctorReport,
   getWrapperVersion,
   publishedCoreProbe,
+  runWrapperUpdate,
   laneDoctorChecks,
 } = require('../lib/wrapper.cjs');
 
@@ -26,6 +27,9 @@ test('parseArgs handles codex install', () => {
 test('parseArgs handles version and doctor', () => {
   assert.deepEqual(parseArgs(['version']), { type: 'version' });
   assert.deepEqual(parseArgs(['doctor', '--json']), { type: 'doctor', json: true });
+  assert.deepEqual(parseArgs(['install-codex', '--target', '/tmp/repo']), { type: 'lane', lane: 'codex', action: 'install', target: '/tmp/repo', json: false });
+  assert.deepEqual(parseArgs(['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json']), { type: 'core', coreArgs: ['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json'] });
+  assert.deepEqual(parseArgs(['update']), { type: 'update' });
 });
 
 test('parseArgs handles dashboard flags', () => {
@@ -180,4 +184,26 @@ test('laneDoctorChecks reports healthy claude install surfaces', () => {
 test('wrapper version comes from package json', () => {
   const packageRoot = path.resolve(__dirname, '..');
   assert.equal(getWrapperVersion(packageRoot), require('../package.json').version);
+});
+
+
+test('completionScript exposes update alias and direct install aliases', () => {
+  const { completionScript } = require('../lib/wrapper.cjs');
+  const bash = completionScript('bash');
+  assert.match(bash, /install-codex/);
+  assert.match(bash, /rebuild-index/);
+  assert.match(bash, /update/);
+  const zsh = completionScript('zsh');
+  assert.match(zsh, /install-codex/);
+  assert.match(zsh, /update/);
+});
+
+test('runWrapperUpdate shells out to npm global install', () => {
+  const calls = [];
+  const fakeRunner = (tool, args) => {
+    calls.push({ tool, args });
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  assert.equal(runWrapperUpdate('pipe', fakeRunner), 0);
+  assert.deepEqual(calls[0], { tool: 'npm', args: ['install', '-g', '@cafitac/agent-learner@latest'] });
 });

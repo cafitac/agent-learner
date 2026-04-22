@@ -1,6 +1,6 @@
 {
   "name": "@cafitac/agent-learner",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "npm delivery wrapper for the agent-learner Python core",
   "license": "MIT",
   "type": "commonjs",

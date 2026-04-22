@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime
+import importlib.util
 import json
 import os
 import shutil
@@ -33,8 +34,11 @@ def read_json() -> dict:
 
 
 def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = None) -> None:
-    cli = shutil.which("agent-learner")
-    base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
+    if importlib.util.find_spec("agent_learner") is not None:
+        base = [sys.executable, "-m", "agent_learner.cli.main"]
+    else:
+        cli = shutil.which("agent-learner")
+        base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
     try:
         subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
     except Exception:

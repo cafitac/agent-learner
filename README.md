@@ -99,6 +99,8 @@ agent-learner history --project-root /path/to/repo --latest-per-rule --last 10
 agent-learner history-summary --project-root /path/to/repo --by adapter-decision
 agent-learner overview --project-root /path/to/repo --format json
 agent-learner rebuild-index --project-root /path/to/repo
+agent-learner install-codex --target /path/to/repo
+agent-learner update
 ```
 
 ## Repository shape
@@ -157,3 +159,34 @@ Or from a source checkout:
 ```
 
 Then follow `docs/publish-smoke-checklist.md`.
+
+
+## Wrapper convenience
+
+Common wrapper aliases now work directly:
+
+```bash
+agent-learner install-codex --target "$PWD"
+agent-learner install-claude --target "$PWD"
+agent-learner rebuild-index --project-root "$PWD"
+agent-learner bootstrap --target "$PWD"
+agent-learner update
+agent-learner completion zsh
+```
+
+
+## Shell completion
+
+Zsh:
+
+```bash
+echo 'source <(agent-learner completion zsh)' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Bash:
+
+```bash
+echo 'source <(agent-learner completion bash)' >> ~/.bashrc
+source ~/.bashrc
+```

@@ -9,6 +9,7 @@ from agent_learner.core.storage import migrate_legacy_learning_assets
 AUTO_SESSION_LEARNING = """#!/usr/bin/env python3
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -34,8 +35,11 @@ def read_json() -> dict:
 
 
 def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = None) -> None:
-    cli = shutil.which("agent-learner")
-    base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
+    if importlib.util.find_spec("agent_learner") is not None:
+        base = [sys.executable, "-m", "agent_learner.cli.main"]
+    else:
+        cli = shutil.which("agent-learner")
+        base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
     try:
         subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
     except Exception:
@@ -93,6 +97,7 @@ if __name__ == "__main__":
 PROMPT_CONTEXT = """#!/usr/bin/env python3
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -124,11 +129,14 @@ def main() -> int:
 
     project_root = Path(payload.get("cwd") or os.getcwd()).resolve()
     argv: list[str] | None = None
-    cli = shutil.which("agent-learner")
-    if cli:
-        argv = [cli, "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
-    else:
+    if importlib.util.find_spec("agent_learner") is not None:
         argv = [sys.executable, "-m", "agent_learner.cli.main", "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
+    else:
+        cli = shutil.which("agent-learner")
+        if cli:
+            argv = [cli, "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
+        else:
+            argv = [sys.executable, "-m", "agent_learner.cli.main", "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
 
     try:
         result = subprocess.run(argv, capture_output=True, text=True, check=False)
