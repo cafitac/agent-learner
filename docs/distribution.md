@@ -11,6 +11,16 @@
 - Codex/plugin-style installation UX is better served by npm.
 - The wrapper keeps UX npm-native without forcing an immediate rewrite of the core.
 
+## User-facing recommendation
+
+Treat these as the supported user-facing paths:
+
+1. `pipx install "agent-learner[web]"` + `agent-learner dashboard ...`
+2. `npx @cafitac/agent-learner dashboard ...`
+3. source checkout helper `./bin/dashboard.sh`
+
+Treat Docker as optional convenience only, not the primary OSS path.
+
 ## Release order
 
 Publish in this order:
@@ -65,6 +75,18 @@ npm pack --dry-run
 npm publish --access public
 ```
 
+## Post-publish smoke order
+
+After publishing:
+
+1. `pipx` path
+2. `uvx` path
+3. `npx` wrapper path
+4. optional source-checkout helper path
+5. optional Docker path
+
+Use `docs/publish-smoke-checklist.md` as the exact command matrix.
+
 
 ## Version coordination
 
@@ -82,6 +104,7 @@ Why:
 If versions intentionally diverge later, document the compatibility matrix here.
 
 See `docs/release-process.md` for tag conventions, changelog expectations, and the recommended GitHub/PyPI/npm release order.
+See `docs/publish-smoke-checklist.md` for the cross-path install and dashboard smoke matrix after publishing.
 
 ## Prerelease rehearsal
 

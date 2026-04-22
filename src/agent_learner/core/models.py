@@ -8,6 +8,8 @@ RuleStatus = Literal["draft", "approved", "needs_review", "deprecated"]
 RulePriority = Literal["low", "medium", "high"]
 RuleConfidence = Literal["low", "medium", "high"]
 RuleModelDependency = Literal["none", "low", "high"]
+ComparisonDecisionType = Literal["new_rule", "refresh_existing", "revise_existing", "fork_rule", "reject_candidate"]
+BrainScope = Literal["project", "global"]
 
 
 def utc_now_iso() -> str:
@@ -47,8 +49,22 @@ class LearningRule:
     updated_at: str | None = None
     last_used: str | None = None
     promote_count: int = 0
+    refresh_count: int = 0
     use_count: int = 0
     token_estimate: int = 0
+    source_event: str | None = None
+    source_adapter: str | None = None
+    derived_from_candidate: str | None = None
+    decision: ComparisonDecisionType | None = None
+    decision_reason: str | None = None
+    supersedes: str | None = None
+    superseded_by: str | None = None
+    related_rule: str | None = None
+    evidence_excerpt: str | None = None
+    last_validated_at: str | None = None
+    last_validated_by: str | None = None
+    brain_scope: BrainScope = "project"
+    source_project: str | None = None
 
     def ensure_defaults(self) -> None:
         if not self.summary:

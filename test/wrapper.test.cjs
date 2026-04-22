@@ -27,6 +27,17 @@ test('parseArgs handles version and doctor', () => {
   assert.deepEqual(parseArgs(['doctor', '--json']), { type: 'doctor', json: true });
 });
 
+test('parseArgs handles dashboard flags', () => {
+  assert.deepEqual(parseArgs(['dashboard', '--project-root', '/tmp/repo', '--build', '--open', '--port', '8877']), {
+    type: 'dashboard',
+    projectRoot: '/tmp/repo',
+    build: true,
+    noBuild: false,
+    open: true,
+    port: '8877',
+  });
+});
+
 test('parseArgs handles lane doctor json', () => {
   assert.deepEqual(parseArgs(['codex', 'doctor', '--target', '/tmp/repo', '--json']), {
     type: 'lane',
@@ -60,6 +71,14 @@ test('buildExecutionPlan falls back to uvx without local core', () => {
   assert.deepEqual(plan.args, ['--from', 'agent-learner', 'agent-learner', 'qa-codex-smoke', '--project-root', '/tmp/repo']);
 });
 
+test('buildExecutionPlan maps dashboard to local uv run', () => {
+  const packageRoot = path.resolve(__dirname, '..');
+  const plan = buildExecutionPlan({ type: 'dashboard', projectRoot: '/tmp/repo', build: true, noBuild: false, open: true, port: '8877' }, packageRoot, '/tmp/repo');
+  assert.equal(plan.mode, 'local');
+  assert.equal(plan.command, 'uv');
+  assert.deepEqual(plan.args, ['run', 'agent-learner', 'dashboard', '--project-root', '/tmp/repo', '--build', '--open', '--port', '8877']);
+});
+
 test('doctor report captures local mode and tool status', () => {
   const packageRoot = path.resolve(__dirname, '..');
   const fakeRunner = (tool) => ({ status: 0, stdout: `${tool}-version\n`, stderr: '' });
@@ -67,7 +86,10 @@ test('doctor report captures local mode and tool status', () => {
   assert.equal(report.mode, 'local');
   assert.equal(report.localCoreAvailable, true);
   assert.equal(report.tools.uv.available, true);
-  assert.match(report.advice.join(' '), /uv run agent-learner/);
+  assert.ok(report.verdict === 'READY' || report.verdict === 'SETUP_REQUIRED');
+  assert.equal(typeof report.dashboardReady, 'boolean');
+  assert.ok(typeof report.nextCommand === 'string' || report.nextCommand === null);
+  assert.match(report.advice.join(' '), /dashboard|uv run agent-learner/);
 });
 
 test('laneDoctorChecks reports missing codex install surfaces', () => {

@@ -1,5 +1,28 @@
 # Install
 
+If you want the shortest path, read this page in order:
+
+1. **Recommended entrypoint**
+2. **Published-package goal**
+3. **npm-wrapper goal**
+4. **Source checkout helper**
+
+If you are validating a release after publish, jump to:
+
+- `docs/publish-smoke-checklist.md`
+- `docs/release-process.md`
+
+## Recommended entrypoint
+
+For most users, the best path is:
+
+```bash
+agent-learner doctor --project-root /path/to/consumer-repo
+agent-learner dashboard --project-root /path/to/consumer-repo --open
+```
+
+Everything below is installation detail or alternative entrypoints.
+
 ## Recommended dev install
 
 ```bash
@@ -16,6 +39,45 @@ python3 -m venv .venv
 python -m pip install -e .[dev]
 ```
 
+Published-package goal:
+
+```bash
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root /path/to/consumer-repo
+```
+
+Recommended default flow:
+
+```bash
+agent-learner doctor --project-root /path/to/consumer-repo
+agent-learner dashboard --project-root /path/to/consumer-repo --open
+```
+
+The dashboard default port is `8766`. This avoids common local MCP/gateway
+ports such as `8765`.
+
+npm-wrapper goal:
+
+```bash
+npx @cafitac/agent-learner doctor
+npx @cafitac/agent-learner dashboard --project-root /path/to/consumer-repo
+```
+
+Source checkout helper:
+
+```bash
+./bin/dashboard.sh doctor
+./bin/dashboard.sh --open
+```
+
+Optional Docker path:
+
+```bash
+docker compose up --build
+```
+
+Docker is a convenience option only. It should not be treated as the primary
+or required OSS installation path.
+
 ## Codex adapter
 
 ```bash
@@ -27,17 +89,23 @@ This creates:
 - `.codex/skills/session-wrap/`
 - `.codex/skills/feedback-learning/`
 - `.codex/skills/hermit-learner/`
-- `.codex/references/learning/`
 - `.codex/references/scripts/auto_session_learning.py`
 - `.codex/references/scripts/codex_prompt_context.py`
-- `.omx/wiki/session-log/`
+- `.agent-learner/learning/`
 - `.agent-learner/events/codex/`
 - `.agent-learner/candidates/`
+- `.agent-learner/history/`
 - `.agent-learner/state/processed-events/`
 
 The Codex adapter wires two native hook paths:
 - `UserPromptSubmit` -> retrieve approved learning assets and inject compact per-turn context
 - `Stop` -> capture new learning candidates and refresh the dashboard
+
+Canonical durable learning storage lives under `.agent-learner/learning/`.
+`.codex/` remains the adapter and hook surface, not the system of record.
+If legacy rules already exist under `.codex/references/learning/`, install/bootstrap
+copies them into the canonical root and writes a migration marker so reads switch
+cleanly without hiding existing assets.
 
 Preview the prompt injection locally:
 
@@ -95,9 +163,46 @@ agent-learner qa-claude-smoke
 Context/model utilities:
 
 ```bash
+agent-learner doctor --project-root /path/to/consumer-repo
+agent-learner dashboard --project-root /path/to/consumer-repo
 agent-learner detect-context --project-root /path/to/consumer-repo
 agent-learner set-model --project-root /path/to/consumer-repo --model claude-opus-4-7
 agent-learner sweep --project-root /path/to/consumer-repo
+```
+
+Candidate review utilities:
+
+```bash
+agent-learner review-candidates --project-root /path/to/consumer-repo
+agent-learner review-candidate --project-root /path/to/consumer-repo --candidate candidate-update-tests.md --action approve
+agent-learner review-candidate --project-root /path/to/consumer-repo --candidate candidate-update-tests.md --action reject --reason "too generic"
+agent-learner history --project-root /path/to/consumer-repo --rule keep-tests-updated --format json
+agent-learner history --project-root /path/to/consumer-repo --decision revise_existing --since 2026-04-22T00:00:00Z
+agent-learner history --project-root /path/to/consumer-repo --latest-per-rule --last 10
+agent-learner history-summary --project-root /path/to/consumer-repo --by action --since 2026-04-22T00:00:00Z
+agent-learner history-summary --project-root /path/to/consumer-repo --by adapter-decision --top 5
+agent-learner overview --project-root /path/to/consumer-repo --format json
+agent-learner dashboard-summary --project-root /path/to/consumer-repo --format json
+agent-learner generate-dashboard --project-root /path/to/consumer-repo
+agent-learner serve-dashboard --project-root /path/to/consumer-repo --port 8766
+agent-learner serve-dashboard-fastapi --project-root /path/to/consumer-repo --port 8766
+agent-learner dashboard --project-root /path/to/consumer-repo --open
+
+FastAPI mode now exposes `/api/projects` and `/api/summary?project=<root>` so a frontend can switch between registered project brains from one global-oriented UI.
+FastAPI serves frontend assets from the `agent-learner` app's own `frontend/dist`, while `--project-root` selects which project brain the API reads by default.
+FastAPI is now the primary dashboard runtime; build the React frontend before using `serve-dashboard-fastapi`.
+The `dashboard` command now attempts to build the frontend automatically when the bundled dist is missing. Use `--no-build` if you want a strict fail-fast path instead.
+
+Frontend development (React + Vite scaffold):
+
+```bash
+cd frontend
+npm install
+npm run dev
+npm run build
+```
+
+After building, `agent-learner serve-dashboard-fastapi --project-root /path/to/consumer-repo` will serve the built `frontend/dist` bundle.
 ```
 
 CI now runs both `qa-codex-smoke` and `qa-claude-smoke` on Python 3.13 so the adapter-level smoke paths stay covered in automation.

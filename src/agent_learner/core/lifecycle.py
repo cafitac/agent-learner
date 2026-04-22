@@ -23,6 +23,7 @@ SECTION_MAP = {
     "Validated models": "validated_on_models",
     "Excluded models": "excluded_models",
     "Evidence": "evidence",
+    "Evidence excerpt": "evidence_excerpt",
     "Source": "source",
 }
 LIST_SECTIONS = {
@@ -63,6 +64,69 @@ class LearningLifecycle:
         rule.status = "approved"
         rule.promote_count = max(rule.promote_count + 1, 1)
         rule.last_seen_at = utc_now_iso()
+        return self.save_rule(rule)
+
+    def refresh(
+        self,
+        path_or_name: str | Path,
+        *,
+        source_event: str | None = None,
+        source_adapter: str | None = None,
+        derived_from_candidate: str | None = None,
+        decision_reason: str | None = None,
+        evidence_excerpt: str | None = None,
+    ) -> Path:
+        rule = self.load_rule(path_or_name)
+        rule.last_seen_at = utc_now_iso()
+        rule.refresh_count += 1
+        rule.decision = "refresh_existing"
+        if source_event:
+            rule.source_event = source_event
+        if source_adapter:
+            rule.source_adapter = source_adapter
+        if derived_from_candidate:
+            rule.derived_from_candidate = derived_from_candidate
+        if decision_reason:
+            rule.decision_reason = decision_reason
+        if evidence_excerpt:
+            rule.evidence_excerpt = evidence_excerpt
+            rule.evidence = evidence_excerpt
+        return self.save_rule(rule)
+
+    def revise(
+        self,
+        path_or_name: str | Path,
+        *,
+        rule_text: str,
+        summary: str,
+        scope: str,
+        why: str,
+        source_event: str | None = None,
+        source_adapter: str | None = None,
+        derived_from_candidate: str | None = None,
+        decision_reason: str | None = None,
+        evidence_excerpt: str | None = None,
+    ) -> Path:
+        rule = self.load_rule(path_or_name)
+        prior_identity = f"{rule.name}@{rule.updated_at or 'unknown'}"
+        rule.rule = rule_text
+        rule.summary = summary or rule_text
+        rule.scope = scope
+        rule.why = why
+        rule.last_seen_at = utc_now_iso()
+        rule.decision = "revise_existing"
+        rule.supersedes = prior_identity
+        if source_event:
+            rule.source_event = source_event
+        if source_adapter:
+            rule.source_adapter = source_adapter
+        if derived_from_candidate:
+            rule.derived_from_candidate = derived_from_candidate
+        if decision_reason:
+            rule.decision_reason = decision_reason
+        if evidence_excerpt:
+            rule.evidence_excerpt = evidence_excerpt
+            rule.evidence = evidence_excerpt
         return self.save_rule(rule)
 
     def mark_needs_review(self, rule: LearningRule) -> Path:
@@ -184,8 +248,22 @@ class LearningLifecycle:
             updated_at=str(metadata.get("updated_at") or "") or None,
             last_used=str(metadata.get("last_used") or "") or None,
             promote_count=int(metadata.get("promote_count") or 0),
+            refresh_count=int(metadata.get("refresh_count") or 0),
             use_count=int(metadata.get("use_count") or 0),
             token_estimate=int(metadata.get("token_estimate") or 0),
+            source_event=str(metadata.get("source_event") or "") or None,
+            source_adapter=str(metadata.get("source_adapter") or "") or None,
+            derived_from_candidate=str(metadata.get("derived_from_candidate") or "") or None,
+            decision=str(metadata.get("decision") or "") or None,
+            decision_reason=str(metadata.get("decision_reason") or "") or None,
+            supersedes=str(metadata.get("supersedes") or "") or None,
+            superseded_by=str(metadata.get("superseded_by") or "") or None,
+            related_rule=str(metadata.get("related_rule") or "") or None,
+            evidence_excerpt=str(metadata.get("evidence_excerpt") or "") or None,
+            last_validated_at=str(metadata.get("last_validated_at") or "") or None,
+            last_validated_by=str(metadata.get("last_validated_by") or "") or None,
+            brain_scope=str(metadata.get("brain_scope") or "project"),
+            source_project=str(metadata.get("source_project") or "") or None,
         )
         rule.ensure_defaults()
         return rule
@@ -250,12 +328,26 @@ class LearningLifecycle:
             "confidence": rule.confidence,
             "model_dependency": rule.model_dependency,
             "promote_count": rule.promote_count,
+            "refresh_count": rule.refresh_count,
             "use_count": rule.use_count,
             "token_estimate": rule.token_estimate,
             "first_seen_at": rule.first_seen_at or "",
             "last_seen_at": rule.last_seen_at or "",
             "updated_at": rule.updated_at or "",
             "last_used": rule.last_used or "",
+            "source_event": rule.source_event or "",
+            "source_adapter": rule.source_adapter or "",
+            "derived_from_candidate": rule.derived_from_candidate or "",
+            "decision": rule.decision or "",
+            "decision_reason": rule.decision_reason or "",
+            "supersedes": rule.supersedes or "",
+            "superseded_by": rule.superseded_by or "",
+            "related_rule": rule.related_rule or "",
+            "evidence_excerpt": rule.evidence_excerpt or "",
+            "last_validated_at": rule.last_validated_at or "",
+            "last_validated_by": rule.last_validated_by or "",
+            "brain_scope": rule.brain_scope,
+            "source_project": rule.source_project or "",
             "scope": rule.scope,
             "tags": rule.tags,
             "triggers": rule.triggers,
@@ -307,6 +399,8 @@ class LearningLifecycle:
                 body.extend(["", f"## {section_name}", *[f"- {item}" for item in values]])
         if rule.evidence:
             body.extend(["", "## Evidence", rule.evidence])
+        if rule.evidence_excerpt:
+            body.extend(["", "## Evidence excerpt", rule.evidence_excerpt])
         if rule.source:
             body.extend(["", "## Source", rule.source])
         return "\n".join(frontmatter + [""] + body).rstrip() + "\n"

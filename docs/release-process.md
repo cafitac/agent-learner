@@ -21,6 +21,16 @@ This repo has three release lanes:
 5. Verify `uvx --from agent-learner agent-learner --help`
 6. Push `npm-vX.Y.Z` to publish the npm wrapper
 
+## Immediately after publish
+
+Run the real user-facing smoke paths in this order:
+
+1. `pipx install "agent-learner[web]"` -> `agent-learner doctor` -> `agent-learner dashboard`
+2. `uvx --from "agent-learner[web]" agent-learner doctor`
+3. `npx @cafitac/agent-learner doctor`
+
+Use `docs/publish-smoke-checklist.md` for the exact matrix and optional paths.
+
 ## Why this order matters
 
 The npm wrapper's published mode delegates into:
@@ -77,5 +87,11 @@ python scripts/release/release_check.py --version X.Y.Z
 ```
 
 Use `--skip-commands` for a faster structural check or `--json` for automation.
+For dashboard/runtime-specific release smoke validation, also run:
+
+```bash
+python scripts/release/publish_smoke_check.py --json
+python scripts/release/published_runtime_smoke.py --project-root /path/to/consumer-repo --json --skip-commands
+```
 
 Note: the Python package keeps prerelease form like `0.2.0rc2`, while the npm wrapper is normalized to npm-safe semver like `0.2.0-rc2`.

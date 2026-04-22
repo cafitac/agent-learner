@@ -1,6 +1,6 @@
 {
   "name": "@cafitac/agent-learner",
-  "version": "0.2.0",
+  "version": "0.3.0-rc1",
   "description": "npm delivery wrapper for the agent-learner Python core",
   "license": "MIT",
   "type": "commonjs",
@@ -20,7 +20,9 @@
     "test": "npm run test:wrapper",
     "test:wrapper": "node --test",
     "pack:check": "npm pack --dry-run",
-    "doctor": "node ./bin/agent-learner.cjs doctor"
+    "doctor": "node ./bin/agent-learner.cjs doctor",
+    "dashboard": "node ./bin/agent-learner.cjs dashboard --build",
+    "smoke:publish": "python3 ./scripts/release/publish_smoke_check.py --json"
   },
   "keywords": [
     "agent",
