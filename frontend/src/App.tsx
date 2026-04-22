@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CandidateDetailPanel, CandidatesPanel, CountList, HistoryTable, MetricCard, ProjectSelector, RuleDetailPanel, RulesPanel } from "./components";
+import { CandidateModalContent, CandidatesPanel, CountList, DetailModal, HistoryTable, MetricCard, ProjectSelector, RuleModalContent, RulesPanel } from "./components";
 import { Summary, pageStyle, panelStyle, palette } from "./types";
 
 function textValue(value: unknown) {
@@ -24,6 +24,8 @@ export function App() {
   const [selectedRuleName, setSelectedRuleName] = useState<string>("");
   const [selectedCandidatePath, setSelectedCandidatePath] = useState<string>("");
   const [historyFilter, setHistoryFilter] = useState<string>("");
+  const [ruleFilter, setRuleFilter] = useState<string>("");
+  const [activeModal, setActiveModal] = useState<null | { type: "rule"; key: string } | { type: "candidate"; key: string }>(null);
 
   async function load(projectOverride?: string) {
     const effectiveProject = projectOverride ?? selectedProject;
@@ -62,6 +64,20 @@ export function App() {
       setStatusTone("error");
     });
   }, [selectedProject]);
+
+  useEffect(() => {
+    if (!activeModal) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActiveModal(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeModal]);
 
   async function promoteGlobal(name: string) {
     try {
@@ -119,6 +135,24 @@ export function App() {
     return { curated, drafts, local, global };
   }, [summary]);
   const rules = useMemo(() => (ruleCollections ? ruleCollections[scope] : []), [ruleCollections, scope]);
+  const filteredRules = useMemo(() => {
+    const normalizedFilter = ruleFilter.toLowerCase().trim();
+    if (!normalizedFilter) return rules;
+    return rules.filter((rule) =>
+      [
+        rule.name,
+        rule.summary,
+        rule.scope,
+        rule.why,
+        rule.good_pattern,
+        rule.avoid_pattern,
+        rule.source_project,
+      ]
+        .map((value) => String(value ?? "").toLowerCase())
+        .join(" ")
+        .includes(normalizedFilter),
+    );
+  }, [rules, ruleFilter]);
   const ruleCounts = useMemo(
     () =>
       ruleCollections
@@ -132,8 +166,8 @@ export function App() {
     [ruleCollections],
   );
   const selectedRule = useMemo(
-    () => (rules.find((rule) => String(rule.name) === selectedRuleName) as Record<string, unknown> | undefined) ?? null,
-    [rules, selectedRuleName],
+    () => ((ruleCollections ? [...ruleCollections.curated, ...ruleCollections.drafts, ...ruleCollections.local, ...ruleCollections.global] : []).find((rule) => String(rule.name) === selectedRuleName) as Record<string, unknown> | undefined) ?? null,
+    [ruleCollections, selectedRuleName],
   );
   const selectedCandidate = useMemo(
     () => (summary?.candidates.find((candidate) => String(candidate.path) === selectedCandidatePath) as Record<string, unknown> | undefined) ?? null,
@@ -141,7 +175,7 @@ export function App() {
   );
 
   return (
-    <div style={pageStyle}>
+    <div style={{ ...pageStyle, scrollBehavior: "smooth" }}>
       <div style={{ maxWidth: 1360, margin: "0 auto", padding: "40px 24px 72px" }}>
         <section style={{ ...panelStyle, borderRadius: 36, padding: 32, boxShadow: palette.shadow }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24, alignItems: "end" }}>
@@ -162,6 +196,34 @@ export function App() {
             </div>
           </div>
           <div style={{ height: 1, background: palette.line, margin: "24px 0" }} />
+          <nav style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18, position: "sticky", top: 12, zIndex: 20 }}>
+            {[
+              ["overview", "Overview"],
+              ["rules", "Rules"],
+              ["candidates", "Candidates"],
+              ["history", "History"],
+            ].map(([id, label]) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  borderRadius: 999,
+                  border: `1px solid ${palette.line}`,
+                  background: "rgba(255,255,255,0.74)",
+                  color: palette.text,
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
           <p style={{ color: statusTone === "error" ? palette.red : statusTone === "success" ? palette.green : palette.textMuted, marginTop: 0 }}>
             {status}
           </p>
@@ -174,7 +236,7 @@ export function App() {
                 promoteAllProjects={promoteAllProjects}
                 setPromoteAllProjects={setPromoteAllProjects}
               />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 22 }}>
+              <div id="overview" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 22, scrollMarginTop: 24 }}>
                 <MetricCard label="Local Rules" value={summary.overview.local_rules} />
                 <MetricCard label="Global Rules" value={summary.overview.global_rules} />
                 <MetricCard label="Merged Rules" value={summary.overview.merged_rules} />
@@ -195,31 +257,49 @@ export function App() {
           </div>
         ) : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginTop: 24, alignItems: "start" }}>
+        <div id="rules" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginTop: 24, alignItems: "start", scrollMarginTop: 24 }}>
           <RulesPanel
             scope={scope}
             setScope={setScope}
-            rules={rules}
+            rules={filteredRules}
             counts={ruleCounts}
+            ruleFilter={ruleFilter}
+            setRuleFilter={setRuleFilter}
             onPromoteGlobal={promoteGlobal}
-            selectedRuleName={selectedRuleName}
-            onSelectRule={setSelectedRuleName}
+            onSelectRule={(name) => {
+              setSelectedRuleName(name);
+              setActiveModal({ type: "rule", key: name });
+            }}
             disabled={actionPending}
           />
-          <CandidatesPanel
-            candidates={summary?.candidates ?? []}
-            onReviewCandidate={reviewCandidate}
-            selectedCandidatePath={selectedCandidatePath}
-            onSelectCandidate={setSelectedCandidatePath}
-            disabled={actionPending}
-          />
+          <div id="candidates" style={{ scrollMarginTop: 24 }}>
+            <CandidatesPanel
+              candidates={summary?.candidates ?? []}
+              onReviewCandidate={reviewCandidate}
+              onSelectCandidate={(path) => {
+                setSelectedCandidatePath(path);
+                setActiveModal({ type: "candidate", key: path });
+              }}
+              disabled={actionPending}
+            />
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginTop: 24, alignItems: "start" }}>
-          <RuleDetailPanel rule={selectedRule} onPromoteGlobal={promoteGlobal} disabled={actionPending} />
-          <CandidateDetailPanel candidate={selectedCandidate} onReviewCandidate={reviewCandidate} disabled={actionPending} />
+        <div id="history" style={{ scrollMarginTop: 24 }}>
+          <HistoryTable items={summary?.recent_history ?? []} filter={historyFilter} setFilter={setHistoryFilter} />
         </div>
-        <HistoryTable items={summary?.recent_history ?? []} filter={historyFilter} setFilter={setHistoryFilter} />
       </div>
+
+      {activeModal?.type === "rule" && selectedRule ? (
+        <DetailModal title="Rule Detail" onClose={() => setActiveModal(null)}>
+          <RuleModalContent rule={selectedRule} onPromoteGlobal={promoteGlobal} disabled={actionPending} />
+        </DetailModal>
+      ) : null}
+
+      {activeModal?.type === "candidate" && selectedCandidate ? (
+        <DetailModal title="Candidate Detail" onClose={() => setActiveModal(null)}>
+          <CandidateModalContent candidate={selectedCandidate} onReviewCandidate={reviewCandidate} disabled={actionPending} />
+        </DetailModal>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { CandidateRecord, HistoryRecord, RuleRecord, Summary, cardStyle, palette, panelStyle } from "./types";
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -24,6 +24,10 @@ const buttonBaseStyle: React.CSSProperties = {
   transition: "all 160ms ease",
 };
 
+const interactiveCardStyle: React.CSSProperties = {
+  transition: "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
+};
+
 function toneStyle(tone: "primary" | "danger" | "neutral"): React.CSSProperties {
   if (tone === "primary") {
     return { ...buttonBaseStyle, background: palette.blue, borderColor: palette.blue, color: "white", boxShadow: `0 10px 24px ${palette.blueSoft}` };
@@ -34,7 +38,7 @@ function toneStyle(tone: "primary" | "danger" | "neutral"): React.CSSProperties 
   return buttonBaseStyle;
 }
 
-function StatusPill({ text, tone = "neutral" }: { text: string; tone?: "neutral" | "success" | "warning" }) {
+export function StatusPill({ text, tone = "neutral" }: { text: string; tone?: "neutral" | "success" | "warning" }) {
   const colors =
     tone === "success"
       ? { background: palette.greenSoft, color: palette.green, border: palette.greenSoft }
@@ -77,6 +81,26 @@ function decisionTone(decision: string) {
   if (decision === "reject_candidate") return "warning";
   return "neutral";
 }
+
+function renderFieldDiffs(fieldDiffs: unknown) {
+  const entries = Object.entries((fieldDiffs as Record<string, unknown>) || {});
+  if (entries.length === 0) {
+    return <p style={{ ...mutedStyle, margin: 0 }}>No structured field diffs recorded.</p>;
+  }
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {entries.map(([key, value]) => (
+        <article key={key} style={{ ...cardStyle, padding: 14, boxShadow: "none" }}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>{key}</div>
+          <div style={{ marginTop: 8, lineHeight: 1.7 }}>{displayText(value, "No value")}</div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+const RULE_DETAIL_MODAL_TITLE = "Rule Detail";
+const CANDIDATE_DETAIL_MODAL_TITLE = "Candidate Detail";
 
 export function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -181,8 +205,9 @@ export function RulesPanel({
   setScope,
   rules,
   counts,
+  ruleFilter,
+  setRuleFilter,
   onPromoteGlobal,
-  selectedRuleName,
   onSelectRule,
   disabled = false,
 }: {
@@ -190,8 +215,9 @@ export function RulesPanel({
   setScope: (value: "curated" | "drafts" | "local" | "global") => void;
   rules: RuleRecord[];
   counts: Record<"curated" | "drafts" | "local" | "global", number>;
+  ruleFilter: string;
+  setRuleFilter: (value: string) => void;
   onPromoteGlobal: (name: string) => void;
-  selectedRuleName: string;
   onSelectRule: (name: string) => void;
   disabled?: boolean;
 }) {
@@ -204,7 +230,7 @@ export function RulesPanel({
 
   const helperText =
     scope === "curated"
-      ? "Curated surfaces the highest-signal reusable rules first and hides empty draft placeholders."
+      ? "Curated surfaces the highest-signal reusable rules first and hides unfinished draft noise."
       : scope === "drafts"
         ? "Drafts collects unfinished or low-signal rules that still need curation before they become reliable guidance."
         : scope === "local"
@@ -215,7 +241,7 @@ export function RulesPanel({
     <section style={panelStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
         <h2 style={sectionTitleStyle}>Rules</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {tabs.map(({ key, label }) => (
             <button
               key={key}
@@ -240,23 +266,38 @@ export function RulesPanel({
         </div>
       </div>
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>{helperText}</p>
+      <div style={{ marginBottom: 16 }}>
+        <input
+          value={ruleFilter}
+          onChange={(event) => setRuleFilter(event.target.value)}
+          placeholder="Filter rules by name, summary, scope, or rationale..."
+          style={{ width: "100%", padding: "12px 14px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, background: "rgba(255,255,255,0.88)", color: palette.text }}
+        />
+      </div>
       <div style={{ display: "grid", gap: 12 }}>
         {rules.length === 0 ? <p style={mutedStyle}>No rules available for this scope yet.</p> : null}
         {rules.map((rule) => (
           <article
             key={String(rule.name)}
-            style={{
-              ...cardStyle,
-              outline: selectedRuleName === String(rule.name) ? `2px solid ${palette.blue}` : "none",
-              cursor: "pointer",
-            }}
+            style={{ ...cardStyle, ...interactiveCardStyle, cursor: "pointer" }}
             onClick={() => onSelectRule(String(rule.name))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelectRule(String(rule.name));
+              }
+            }}
+            tabIndex={0}
+            role="button"
+            aria-label={`Open details for rule ${String(rule.name)}`}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <strong>{String(rule.name)}</strong>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+              <div>
+                <strong>{String(rule.name)}</strong>
+                <p style={{ ...mutedStyle, lineHeight: 1.6, marginBottom: 0 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
+              </div>
               <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
             </div>
-            <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
             <Chips
               items={[
                 `scope ${String(rule.learning_scope)}`,
@@ -265,18 +306,21 @@ export function RulesPanel({
                 rule.source_project ? `project ${String(rule.source_project)}` : "",
               ].filter(Boolean)}
             />
-            {rule.related_rule ? <div style={{ ...mutedStyle, marginTop: 10 }}>related: {String(rule.related_rule)}</div> : null}
-            {rule.learning_scope === "project" ? (
-              <div style={{ marginTop: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12 }}>
+              <span style={mutedStyle}>{displayText(rule.why, "Tap to inspect why, provenance, and rule details.")}</span>
+              {rule.learning_scope === "project" ? (
                 <button
-                  onClick={() => onPromoteGlobal(String(rule.name))}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onPromoteGlobal(String(rule.name));
+                  }}
                   style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
                   disabled={disabled}
                 >
                   Promote Global
                 </button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </article>
         ))}
       </div>
@@ -284,66 +328,14 @@ export function RulesPanel({
   );
 }
 
-export function RuleDetailPanel({
-  rule,
-  onPromoteGlobal,
-  disabled = false,
-}: {
-  rule: RuleRecord | null;
-  onPromoteGlobal: (name: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <section style={panelStyle}>
-      <h2 style={sectionTitleStyle}>Rule Detail</h2>
-      {!rule ? (
-        <p style={mutedStyle}>Select a rule to inspect provenance, usage, and scope.</p>
-      ) : (
-        <article style={{ ...cardStyle, position: "sticky", top: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-            <strong>{String(rule.name)}</strong>
-            <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
-          </div>
-          <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
-          <Chips
-            items={[
-              `scope ${String(rule.learning_scope)}`,
-              `applies ${displayText(rule.scope, "unspecified")}`,
-              `uses ${String(rule.use_count)}`,
-              `promote ${String(rule.promote_count)}`,
-              `refresh ${String(rule.refresh_count)}`,
-            ]}
-          />
-          {rule.source_project ? <div style={{ ...mutedStyle, marginTop: 8 }}>source project: {String(rule.source_project)}</div> : null}
-          {rule.related_rule ? <div style={{ ...mutedStyle, marginTop: 8 }}>related rule: {String(rule.related_rule)}</div> : null}
-          {rule.supersedes ? <div style={{ ...mutedStyle, marginTop: 8 }}>supersedes: {String(rule.supersedes)}</div> : null}
-          {rule.learning_scope === "project" ? (
-            <div style={{ marginTop: 12 }}>
-              <button
-                onClick={() => onPromoteGlobal(String(rule.name))}
-                style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
-                disabled={disabled}
-              >
-                Promote Global
-              </button>
-            </div>
-          ) : null}
-        </article>
-      )}
-    </section>
-  );
-}
-
 export function CandidatesPanel({
   candidates,
   onReviewCandidate,
-  selectedCandidatePath,
   onSelectCandidate,
   disabled = false,
 }: {
   candidates: CandidateRecord[];
   onReviewCandidate: (candidate: string, action: "approve" | "reject" | "needs-review") => void;
-  selectedCandidatePath: string;
   onSelectCandidate: (path: string) => void;
   disabled?: boolean;
 }) {
@@ -375,12 +367,17 @@ export function CandidatesPanel({
         {candidates.map((candidate) => (
           <article
             key={String(candidate.path)}
-            style={{
-              ...cardStyle,
-              outline: selectedCandidatePath === String(candidate.path) ? `2px solid ${palette.blue}` : "none",
-              cursor: "pointer",
-            }}
+            style={{ ...cardStyle, ...interactiveCardStyle, cursor: "pointer" }}
             onClick={() => onSelectCandidate(String(candidate.path))}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelectCandidate(String(candidate.path));
+              }
+            }}
+            tabIndex={0}
+            role="button"
+            aria-label={`Open details for candidate ${displayText(candidate.title, "untitled candidate")}`}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <strong>{displayText(candidate.title, "Untitled candidate")}</strong>
@@ -395,84 +392,41 @@ export function CandidatesPanel({
                 candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
               ].filter(Boolean)}
             />
-            <div style={{ marginTop: 10 }}>
-              <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
-            </div>
-            <pre style={{ whiteSpace: "pre-wrap", background: "rgba(17,17,17,0.035)", padding: 12, borderRadius: 16, border: `1px solid ${palette.line}` }}>
-              {JSON.stringify(candidate.field_diffs ?? {}, null, 2)}
-            </pre>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onReviewCandidate(String(candidate.path), "approve");
+                }}
+                style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
+                disabled={disabled}
+              >
                 Approve
               </button>
-              <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onReviewCandidate(String(candidate.path), "needs-review");
+                }}
+                style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }}
+                disabled={disabled}
+              >
                 Needs Review
               </button>
-              <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onReviewCandidate(String(candidate.path), "reject");
+                }}
+                style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }}
+                disabled={disabled}
+              >
                 Reject
               </button>
             </div>
           </article>
         ))}
       </div>
-    </section>
-  );
-}
-
-export function CandidateDetailPanel({
-  candidate,
-  onReviewCandidate,
-  disabled = false,
-}: {
-  candidate: CandidateRecord | null;
-  onReviewCandidate: (candidate: string, action: "approve" | "reject" | "needs-review") => void;
-  disabled?: boolean;
-}) {
-  return (
-    <section style={panelStyle}>
-      <h2 style={sectionTitleStyle}>Candidate Detail</h2>
-      {!candidate ? (
-        <article style={{ ...cardStyle, padding: 22 }}>
-          <strong style={{ fontSize: 18 }}>Pick a candidate to inspect</strong>
-          <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
-            The detail view shows the review rationale, matching rule hint, structured field diffs, and the exact decision actions you can take next.
-          </p>
-        </article>
-      ) : (
-        <article style={{ ...cardStyle, position: "sticky", top: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <strong>{displayText(candidate.title, "Untitled candidate")}</strong>
-              <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
-            </div>
-          <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(candidate.decision_reason, "Awaiting review or additional evidence.")}</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
-            <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
-            {candidate.matched_rule ? <StatusPill text={`matched ${String(candidate.matched_rule)}`} /> : null}
-          </div>
-          <Chips
-            items={[
-              String(candidate.adapter),
-              `decision ${displayText(candidate.decision, "pending")}`,
-              String(candidate.confidence || "-"),
-                candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
-              ].filter(Boolean)}
-          />
-          <pre style={{ whiteSpace: "pre-wrap", background: "rgba(17,17,17,0.035)", padding: 12, borderRadius: 16, border: `1px solid ${palette.line}` }}>
-            {JSON.stringify(candidate.field_diffs ?? {}, null, 2)}
-          </pre>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-            <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
-              Approve
-            </button>
-            <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
-              Needs Review
-            </button>
-            <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
-              Reject
-            </button>
-          </div>
-        </article>
-      )}
     </section>
   );
 }
@@ -536,5 +490,174 @@ export function HistoryTable({
         )}
       </div>
     </section>
+  );
+}
+
+export function DetailModal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(17,17,17,0.38)",
+        backdropFilter: "blur(12px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        zIndex: 1000,
+      }}
+      aria-modal="true"
+      role="dialog"
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: "min(860px, 100%)",
+          maxHeight: "min(86vh, 920px)",
+          overflow: "auto",
+          background: "rgba(255,255,255,0.92)",
+          border: `1px solid ${palette.line}`,
+          borderRadius: 28,
+          boxShadow: palette.shadow,
+          padding: 28,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 18 }}>
+          <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}>{title}</h2>
+          <button ref={closeRef} onClick={onClose} style={toneStyle("neutral")} aria-label={`Close ${title}`}>Close</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function RuleModalContent({
+  rule,
+  onPromoteGlobal,
+  disabled,
+}: {
+  rule: RuleRecord;
+  onPromoteGlobal: (name: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+        <div>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, marginBottom: 8 }}>{RULE_DETAIL_MODAL_TITLE}</div>
+          <strong style={{ fontSize: 22 }}>{String(rule.name)}</strong>
+          <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.7 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
+        </div>
+        <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
+      </div>
+
+      <Chips
+        items={[
+          `scope ${String(rule.learning_scope)}`,
+          `applies ${displayText(rule.scope, "unspecified")}`,
+          `uses ${String(rule.use_count)}`,
+          rule.source_project ? `project ${String(rule.source_project)}` : "",
+        ].filter(Boolean)}
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18 }}>
+        <article style={cardStyle}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Why this exists</div>
+          <p style={{ lineHeight: 1.7, marginBottom: 0 }}>{displayText(rule.why, "No rationale has been written yet.")}</p>
+        </article>
+        <article style={cardStyle}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Good pattern</div>
+          <p style={{ lineHeight: 1.7, marginBottom: 0 }}>{displayText(rule.good_pattern, "No good-pattern guidance recorded.")}</p>
+        </article>
+        <article style={cardStyle}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Avoid</div>
+          <p style={{ lineHeight: 1.7, marginBottom: 0 }}>{displayText(rule.avoid_pattern, "No avoid-pattern guidance recorded.")}</p>
+        </article>
+      </div>
+
+      <article style={cardStyle}>
+        <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, marginBottom: 10 }}>Provenance</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {rule.decision_reason ? <div style={mutedStyle}>decision reason: {String(rule.decision_reason)}</div> : null}
+          {rule.source_adapter ? <div style={mutedStyle}>source adapter: {String(rule.source_adapter)}</div> : null}
+          {rule.source_event ? <div style={mutedStyle}>source event: {String(rule.source_event)}</div> : null}
+          {rule.derived_from_candidate ? <div style={mutedStyle}>derived from: {String(rule.derived_from_candidate)}</div> : null}
+          {rule.updated_at ? <div style={mutedStyle}>updated at: {String(rule.updated_at)}</div> : null}
+          {rule.evidence_excerpt ? <div style={mutedStyle}>evidence excerpt: {String(rule.evidence_excerpt)}</div> : null}
+          {rule.source ? <div style={mutedStyle}>source: {String(rule.source)}</div> : null}
+          {rule.related_rule ? <div style={mutedStyle}>related rule: {String(rule.related_rule)}</div> : null}
+          {rule.supersedes ? <div style={mutedStyle}>supersedes: {String(rule.supersedes)}</div> : null}
+        </div>
+      </article>
+
+      {rule.learning_scope === "project" ? (
+        <div>
+          <button onClick={() => onPromoteGlobal(String(rule.name))} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+            Promote Global
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function CandidateModalContent({
+  candidate,
+  onReviewCandidate,
+  disabled,
+}: {
+  candidate: CandidateRecord;
+  onReviewCandidate: (candidate: string, action: "approve" | "reject" | "needs-review") => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, marginBottom: 8 }}>{CANDIDATE_DETAIL_MODAL_TITLE}</div>
+          <strong style={{ fontSize: 22 }}>{displayText(candidate.title, "Untitled candidate")}</strong>
+          <p style={{ ...mutedStyle, lineHeight: 1.7, marginBottom: 0 }}>{displayText(candidate.decision_reason, "Awaiting review or additional evidence.")}</p>
+        </div>
+        <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
+        {candidate.matched_rule ? <StatusPill text={`matched ${String(candidate.matched_rule)}`} /> : null}
+      </div>
+      <Chips
+        items={[
+          String(candidate.adapter),
+          `decision ${displayText(candidate.decision, "pending")}`,
+          String(candidate.confidence || "-"),
+          candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
+        ].filter(Boolean)}
+      />
+      <article style={cardStyle}>
+        <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, marginBottom: 10 }}>Structured field diffs</div>
+        {renderFieldDiffs(candidate.field_diffs)}
+      </article>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Approve</button>
+        <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Needs Review</button>
+        <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Reject</button>
+      </div>
+    </div>
   );
 }
