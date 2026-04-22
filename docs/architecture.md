@@ -10,3 +10,6 @@
 - Normalized raw hook events feed a shared transcript-aware extraction pipeline that writes draft candidates and processed markers independently of adapter-specific storage.
 - Shared context detection (project, language, framework, current model) now informs retrieval so approved rules can be gated similarly to Claude's `cc-learner` portfolio behavior.
 - Retrieval and lifecycle now support model-aware validation/exclusion metadata and sweep-based status transitions.
+
+- Retrieval is now two-stage: a machine-readable rule index under `.agent-learner/index/rules.json` narrows candidates first, then only the top matching rule files are loaded for prompt injection.
+- Human-readable index snapshots under `.agent-learner/index/index.md` make it easier to audit and prune stale knowledge without opening every rule file.

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .context import ContextSnapshot
+from .indexing import RuleIndexEntry, ensure_rule_index
 from .lifecycle import LearningLifecycle
 from .models import LearningRule, RuleStatus
 from .storage import effective_learning_roots
@@ -48,27 +49,36 @@ def tokenize(text: str) -> list[str]:
 
 def retrieve_rules(lifecycle: LearningLifecycle, request: RetrievalRequest) -> list[RetrievedRule]:
     statuses = RETRIEVAL_STATUSES if request.include_needs_review else APPROVED_STATUSES
-    scored: list[RetrievedRule] = []
-    for path in lifecycle.list_rule_paths(statuses=statuses):
-        rule = lifecycle.load_rule(path)
-        if not should_inject_rule(rule, request.context):
+    document = ensure_rule_index(lifecycle)
+    scored: list[tuple[RuleIndexEntry, float, list[str]]] = []
+    for entry in document.entries:
+        if entry.status not in statuses:
             continue
-        score, reasons = score_rule(rule, request)
+        if not should_inject_rule(entry, request.context):
+            continue
+        score, reasons = score_rule(entry, request)
         if score <= 0:
             continue
-        scored.append(
+        scored.append((entry, score, reasons))
+    scored.sort(key=lambda item: (-item[1], item[0].name))
+    limited = scored[: max(request.limit * 3, request.limit)]
+    selected = apply_budget_to_entries(limited, request.limit, request.token_budget)
+
+    hydrated: list[RetrievedRule] = []
+    for entry, score, reasons in selected:
+        path = lifecycle.root / entry.relative_path
+        rule = lifecycle.load_rule(path, statuses=statuses)
+        hydrated.append(
             RetrievedRule(
                 rule=rule,
                 path=path,
                 score=score,
-                token_cost=rule.token_estimate or lifecycle.estimate_rule_tokens(rule),
-                source_scope=rule.brain_scope,
+                token_cost=entry.token_estimate or lifecycle.estimate_rule_tokens(rule),
+                source_scope=entry.brain_scope,
                 reasons=reasons,
             )
         )
-    scored.sort(key=lambda item: (-item.score, item.rule.name))
-    limited = scored[: max(request.limit * 3, request.limit)]
-    return apply_budget(limited, request.limit, request.token_budget)
+    return hydrated
 
 
 def retrieve_rules_for_project(project_root: Path, request: RetrievalRequest) -> list[RetrievedRule]:
@@ -206,6 +216,28 @@ def score_rule(rule: LearningRule, request: RetrievalRequest) -> tuple[float, li
     score += usage_bonus(rule.use_count)
     return score, reasons
 
+
+
+
+def apply_budget_to_entries(results: list[tuple[RuleIndexEntry, float, list[str]]], limit: int, token_budget: int | None) -> list[tuple[RuleIndexEntry, float, list[str]]]:
+    if token_budget is None:
+        return results[:limit]
+    selected: list[tuple[RuleIndexEntry, float, list[str]]] = []
+    used = 0
+    for entry, score, reasons in results:
+        cost = max(1, entry.token_estimate)
+        if selected and len(selected) >= limit:
+            break
+        if selected and used + cost > token_budget:
+            continue
+        if not selected and cost > token_budget:
+            selected.append((entry, score, reasons))
+            break
+        selected.append((entry, score, reasons))
+        used += cost
+        if len(selected) >= limit:
+            break
+    return selected
 
 def file_matches_rule(file_path: str, patterns: list[str]) -> bool:
     if not file_path or not patterns:

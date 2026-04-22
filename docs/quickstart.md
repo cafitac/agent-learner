@@ -53,6 +53,7 @@ Docker is optional convenience only. The primary path is still `agent-learner da
 ## Useful next commands
 
 ```bash
+agent-learner rebuild-index --project-root "$PWD"
 agent-learner bootstrap --target /path/to/consumer-repo
 agent-learner review-candidates --project-root /path/to/consumer-repo
 agent-learner history --project-root /path/to/consumer-repo --latest-per-rule --last 10

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from agent_learner.adapters.codex_context import render_codex_learning_context
 from agent_learner.core.lifecycle import LearningLifecycle
+from agent_learner.core.indexing import rebuild_rule_index
 from agent_learner.core.models import LearningRule
 from agent_learner.core.retrieval import RetrievalRequest, retrieve_rules
 from agent_learner.core.storage import ensure_global_learning_root
@@ -194,3 +195,45 @@ def test_render_codex_learning_context_merges_global_brain_rules(monkeypatch, tm
     )
     assert context is not None
     assert "global-rule" in context
+
+
+def test_retrieve_uses_index_to_avoid_loading_every_rule(tmp_path: Path, monkeypatch) -> None:
+    lifecycle = LearningLifecycle(tmp_path)
+    for idx in range(8):
+        promote_rule(
+            lifecycle,
+            name=f"rule-{idx}",
+            rule=f"Keep service test path {idx} updated.",
+            summary=f"Rule {idx} summary",
+            scope="services",
+            triggers=[f"trigger-{idx}"],
+            task_types=["bugfix"],
+        )
+    promote_rule(
+        lifecycle,
+        name="best-match",
+        rule="Always keep service tests updated when behavior changes.",
+        summary="Best match for service test updates.",
+        scope="services",
+        triggers=["service", "tests"],
+        task_types=["bugfix"],
+        priority="high",
+        confidence="high",
+    )
+    rebuild_rule_index(lifecycle)
+
+    loaded_paths: list[str] = []
+    original_load = lifecycle.load_rule
+
+    def tracking_load(path_or_name, statuses=None):
+        loaded_paths.append(str(path_or_name))
+        return original_load(path_or_name, statuses=statuses)
+
+    monkeypatch.setattr(lifecycle, 'load_rule', tracking_load)
+    results = retrieve_rules(
+        lifecycle,
+        RetrievalRequest(query="service behavior tests", task_type="bugfix", limit=2),
+    )
+    assert results
+    assert results[0].rule.name == "best-match"
+    assert len(loaded_paths) <= 2

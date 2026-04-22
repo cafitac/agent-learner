@@ -650,3 +650,26 @@ def test_detect_context_set_model_and_sweep_commands(monkeypatch, tmp_path: Path
     assert cli_main() == 0
     changes = json.loads(capsys.readouterr().out)
     assert changes[0]["to"] == "needs_review"
+
+
+def test_rebuild_index_command_outputs_paths(monkeypatch, tmp_path: Path, capsys) -> None:
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle.promote(
+        LearningRule(
+            name="index-me",
+            rule="Keep index metadata current.",
+            why="Retrieval should not scan every file.",
+            scope="learning",
+            good_pattern="Update the rule index whenever rules change.",
+            avoid_pattern="Scan every file on every retrieval.",
+            summary="Index rules for faster retrieval.",
+        )
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "rebuild-index", "--project-root", str(tmp_path), "--scope", "project", "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[0]["scope"] == "project"
+    assert payload[0]["total_rules"] >= 1

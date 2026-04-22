@@ -20,6 +20,7 @@ from agent_learner.core.brain import apply_candidate_action, promote_rule_to_glo
 from agent_learner.core.context import detect_context, write_current_model
 from agent_learner.core.dashboard import build_dashboard_summary, write_dashboard_files
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
+from agent_learner.core.indexing import rebuild_rule_index
 from agent_learner.core.events import build_learning_event, write_learning_event
 from agent_learner.core.pipeline import (
     list_candidate_paths,
@@ -149,6 +150,11 @@ def build_parser() -> argparse.ArgumentParser:
     sweep_cmd.add_argument("--unused-days", type=int, default=30)
     sweep_cmd.add_argument("--needs-review-days", type=int, default=30)
     sweep_cmd.add_argument("--format", choices=["text", "json"], default="text")
+
+    rebuild_index_cmd = sub.add_parser("rebuild-index")
+    rebuild_index_cmd.add_argument("--project-root", default=".")
+    rebuild_index_cmd.add_argument("--scope", choices=["project", "global", "both"], default="both")
+    rebuild_index_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     retrieve_cmd = sub.add_parser("retrieve")
     retrieve_cmd.add_argument("--project-root", default=".")
@@ -404,6 +410,22 @@ def main() -> int:
                 for change in changes:
                     print(f"- {change['name']}: {change['from']} -> {change['to']} ({change['reason']})")
         return 0
+    if args.command == "rebuild-index":
+        project_root = Path(args.project_root).resolve()
+        payload: list[dict[str, object]] = []
+        if args.scope in {"project", "both"}:
+            lifecycle = LearningLifecycle(resolve_learning_root(project_root))
+            payload.append({"scope": "project", **rebuild_rule_index(lifecycle)})
+        if args.scope in {"global", "both"}:
+            lifecycle = LearningLifecycle(ensure_global_learning_root())
+            payload.append({"scope": "global", **rebuild_rule_index(lifecycle)})
+        if args.format == "json":
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            for item in payload:
+                print(f"- {item['scope']}: {item['total_rules']} rules -> {item['json_path']}")
+        return 0
+
     if args.command == "retrieve":
         project_root = Path(args.project_root).resolve()
         if args.format == "json":

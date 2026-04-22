@@ -207,6 +207,8 @@ class LearningLifecycle:
         return changes
 
     def save_rule(self, rule: LearningRule) -> Path:
+        from .indexing import sync_rule_index_entry
+
         rule.ensure_defaults()
         rule.updated_at = utc_now_iso()
         if rule.token_estimate <= 0:
@@ -214,6 +216,7 @@ class LearningLifecycle:
         target = self.path_for_status(rule.status) / f"{rule.name}.md"
         self._remove_duplicates(rule.name, keep=target)
         target.write_text(self.render_rule(rule), encoding="utf-8")
+        sync_rule_index_entry(self.root, target, rule)
         return target
 
     def load_rule(self, path_or_name: str | Path, statuses: list[RuleStatus] | None = None) -> LearningRule:

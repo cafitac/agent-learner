@@ -68,6 +68,13 @@ npm-wrapper goal:
 npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
 ```
 
+The retrieval path uses `.agent-learner/index/rules.json` first and only loads the top matching rules into prompt context.
+If you edit rule files manually, rebuild the index with:
+
+```bash
+agent-learner rebuild-index --project-root "$PWD"
+```
+
 Optional preflight check:
 
 ```bash

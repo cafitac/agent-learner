@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-22
+
+### Added
+- Machine-readable and human-readable rule indexes under `.agent-learner/index/` so learned rules can be audited and pruned without opening every rule file.
+- `agent-learner rebuild-index` to force a full reindex after manual rule edits.
+
+### Changed
+- Retrieval is now two-stage: index first, then only the top matching rule files are loaded into prompt context.
+- Documentation now explains indexed retrieval and pruning as a first-class part of the learning workflow.
+
 ## [0.3.1] - 2026-04-22
 
 ### Changed

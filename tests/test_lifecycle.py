@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from agent_learner.core.lifecycle import LearningLifecycle
+from agent_learner.core.indexing import load_rule_index, rule_index_json_path, rule_index_markdown_path
 from agent_learner.core.models import LearningRule
 
 
@@ -110,3 +111,15 @@ def test_refresh_updates_provenance_fields(tmp_path: Path) -> None:
     assert refreshed.source_event == "codex/stop-1.json"
     assert refreshed.source_adapter == "codex"
     assert refreshed.derived_from_candidate == "candidate-refresh-me.md"
+
+
+def test_promote_updates_machine_and_human_indexes(tmp_path: Path) -> None:
+    lifecycle = LearningLifecycle(tmp_path)
+    lifecycle.promote(make_rule("indexed-rule"))
+
+    document = load_rule_index(tmp_path)
+    assert document is not None
+    assert any(entry.name == "indexed-rule" for entry in document.entries)
+    assert rule_index_json_path(tmp_path).exists()
+    assert rule_index_markdown_path(tmp_path).exists()
+    assert "indexed-rule" in rule_index_markdown_path(tmp_path).read_text(encoding="utf-8")

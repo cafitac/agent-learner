@@ -71,6 +71,14 @@ Docker is optional convenience only. It is not the primary OSS install path.
 - reusable shared knowledge lives under `~/.agent-learner/global/`
 - retrieval is local-first, then global
 
+### Indexed retrieval and pruning
+
+- rules are indexed into machine-readable metadata under `.agent-learner/index/rules.json`
+- a human-readable summary is also written to `.agent-learner/index/index.md`
+- retrieval uses the index first, then loads only the top matching rules
+- `approved` rules are injected by default; `needs_review` and `deprecated` stay out unless explicitly requested
+- use `agent-learner rebuild-index --project-root "$PWD"` if you want to force a full reindex after manual edits
+
 ### Main runtime
 
 The primary UI/runtime path is:
@@ -90,6 +98,7 @@ agent-learner review-candidates --project-root /path/to/repo
 agent-learner history --project-root /path/to/repo --latest-per-rule --last 10
 agent-learner history-summary --project-root /path/to/repo --by adapter-decision
 agent-learner overview --project-root /path/to/repo --format json
+agent-learner rebuild-index --project-root /path/to/repo
 ```
 
 ## Repository shape
