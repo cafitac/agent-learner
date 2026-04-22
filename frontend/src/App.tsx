@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CandidateModalContent, CandidatesPanel, CountList, DetailModal, HistoryTable, ProjectSelector, RuleModalContent, RulesPanel, StatStrip } from "./components";
-import { Summary, cardStyle, pageStyle, panelStyle, palette } from "./types";
+import { Summary, pageStyle, panelStyle, palette } from "./types";
 
 function textValue(value: unknown) {
   return String(value ?? "").trim();
@@ -266,31 +266,35 @@ export function App() {
                 />
               </div>
               <div style={{ marginTop: 24, display: "grid", gap: 12 }}>
-                <article style={cardStyle}>
+                <section style={{ display: "grid", gap: 14, paddingTop: 18, borderTop: `1px solid ${palette.line}` }}>
                   <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Recommended next area</div>
-                  <h3 style={{ marginBottom: 8, fontSize: 22, letterSpacing: "-0.03em" }}>Start with curated rules</h3>
-                  <p style={{ marginTop: 0, color: palette.textMuted, lineHeight: 1.65 }}>
-                    Curated rules are the fastest way to understand what this project has already learned and what guidance is most reusable.
-                  </p>
-                  <a
-                    href="#rules"
-                    onClick={() => setPage("rules")}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      marginTop: 8,
-                      padding: "10px 14px",
-                      borderRadius: 999,
-                      background: palette.blue,
-                      color: "white",
-                      textDecoration: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Open Rules
-                  </a>
-                </article>
-                <article style={{ ...cardStyle, display: "grid", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) auto", gap: 16, alignItems: "center" }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 22, letterSpacing: "-0.03em" }}>Start with curated rules</h3>
+                      <p style={{ marginTop: 8, marginBottom: 0, color: palette.textMuted, lineHeight: 1.65 }}>
+                        Curated rules are the fastest way to understand what this project has already learned and what guidance is most reusable.
+                      </p>
+                    </div>
+                    <a
+                      href="#rules"
+                      onClick={() => setPage("rules")}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "10px 14px",
+                        borderRadius: 999,
+                        background: palette.blue,
+                        color: "white",
+                        textDecoration: "none",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Open Rules
+                    </a>
+                  </div>
+                </section>
+                <section style={{ display: "grid", gap: 10, paddingTop: 18, borderTop: `1px solid ${palette.line}` }}>
                   <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>At a glance</div>
                   <div style={{ color: palette.textMuted, lineHeight: 1.65 }}>
                     {summary.overview.candidates > 0
@@ -302,7 +306,7 @@ export function App() {
                       ? `${summary.overview.global_history_entries} global history event(s) are available for audit.`
                       : "No global history has been recorded yet."}
                   </div>
-                </article>
+                </section>
               </div>
             </>
           ) : null}
