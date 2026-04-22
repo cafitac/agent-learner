@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agent_learner import __version__
+
 from .brain import apply_candidate_action, promote_rule_to_global
 from .dashboard import build_dashboard_summary
 from .storage import read_project_registry
@@ -44,7 +46,7 @@ def create_fastapi_app(project_root: Path):
         raise RuntimeError("FastAPI extras are not installed. Install with `pip install .[web]` or `uv sync --extra web`.") from exc
 
     project_root = project_root.resolve()
-    app = FastAPI(title="agent-learner dashboard", version="0.2.0")
+    app = FastAPI(title="agent-learner dashboard", version=__version__)
     dist_dir = frontend_dist_dir()
     if not dist_dir.exists():
         raise RuntimeError(
