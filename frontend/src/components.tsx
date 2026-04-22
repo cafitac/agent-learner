@@ -82,6 +82,12 @@ function decisionTone(decision: string) {
   return "neutral";
 }
 
+function formatDayLabel(value: unknown) {
+  const text = displayText(value, "");
+  if (!text) return "Unknown day";
+  return text.split("T", 1)[0] || text;
+}
+
 function renderFieldDiffs(fieldDiffs: unknown) {
   const entries = Object.entries((fieldDiffs as Record<string, unknown>) || {});
   if (entries.length === 0) {
@@ -102,12 +108,53 @@ function renderFieldDiffs(fieldDiffs: unknown) {
 const RULE_DETAIL_MODAL_TITLE = "Rule Detail";
 const CANDIDATE_DETAIL_MODAL_TITLE = "Candidate Detail";
 
+function SectionBlock({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section style={{ display: "grid", gap: 10, paddingTop: 14, borderTop: `1px solid ${palette.line}` }}>
+      <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>{title}</div>
+      {children}
+    </section>
+  );
+}
+
 export function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
     <article style={{ ...cardStyle, padding: 20 }}>
       <div style={{ fontSize: 12, textTransform: "uppercase", color: palette.textMuted, letterSpacing: "0.08em", fontWeight: 700 }}>{label}</div>
       <strong style={{ display: "block", fontSize: 34, marginTop: 10, color: palette.text, letterSpacing: "-0.04em" }}>{String(value)}</strong>
     </article>
+  );
+}
+
+export function StatStrip({
+  items,
+}: {
+  items: Array<{ label: string; value: string | number }>;
+}) {
+  return (
+    <section
+      style={{
+        ...panelStyle,
+        padding: 16,
+        borderRadius: 22,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+        gap: 12,
+      }}
+    >
+      {items.map((item) => (
+        <div key={item.label} style={{ display: "grid", gap: 4 }}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>{item.label}</div>
+          <div style={{ fontSize: 24, letterSpacing: "-0.03em", fontWeight: 700 }}>{String(item.value)}</div>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -274,12 +321,38 @@ export function RulesPanel({
           style={{ width: "100%", padding: "12px 14px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, background: "rgba(255,255,255,0.88)", color: palette.text }}
         />
       </div>
-      <div style={{ display: "grid", gap: 12 }}>
+      {rules.length > 0 ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto",
+            gap: 16,
+            padding: "0 6px 10px",
+            borderBottom: `1px solid ${palette.line}`,
+            color: palette.textMuted,
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          <div>Rule</div>
+          <div>Rationale</div>
+          <div style={{ textAlign: "right" }}>Status / Action</div>
+        </div>
+      ) : null}
+      <div style={{ display: "grid", gap: 8 }}>
         {rules.length === 0 ? <p style={mutedStyle}>No rules available for this scope yet.</p> : null}
         {rules.map((rule) => (
           <article
             key={String(rule.name)}
-            style={{ ...cardStyle, ...interactiveCardStyle, cursor: "pointer" }}
+            style={{
+              background: "transparent",
+              borderTop: `1px solid ${palette.line}`,
+              padding: "18px 6px",
+              cursor: "pointer",
+              ...interactiveCardStyle,
+            }}
             onClick={() => onSelectRule(String(rule.name))}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -291,35 +364,42 @@ export function RulesPanel({
             role="button"
             aria-label={`Open details for rule ${String(rule.name)}`}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
-              <div>
-                <strong>{String(rule.name)}</strong>
-                <p style={{ ...mutedStyle, lineHeight: 1.6, marginBottom: 0 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto", gap: 16, alignItems: "start" }}>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", fontSize: 17, letterSpacing: "-0.02em" }}>{String(rule.name)}</strong>
+                <p style={{ ...mutedStyle, lineHeight: 1.65, marginBottom: 0, marginTop: 6 }}>
+                  {displayText(rule.summary, "No summary yet. This rule still needs curation.")}
+                </p>
               </div>
-              <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
-            </div>
-            <Chips
-              items={[
-                `scope ${String(rule.learning_scope)}`,
-                `applies ${displayText(rule.scope, "unspecified")}`,
-                `uses ${String(rule.use_count)}`,
-                rule.source_project ? `project ${String(rule.source_project)}` : "",
-              ].filter(Boolean)}
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12 }}>
-              <span style={mutedStyle}>{displayText(rule.why, "Tap to inspect why, provenance, and rule details.")}</span>
-              {rule.learning_scope === "project" ? (
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onPromoteGlobal(String(rule.name));
-                  }}
-                  style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
-                  disabled={disabled}
-                >
-                  Promote Global
-                </button>
-              ) : null}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ ...mutedStyle, fontSize: 13, lineHeight: 1.65 }}>
+                  <strong style={{ color: palette.text, fontWeight: 600 }}>Why:</strong>{" "}
+                  {displayText(rule.why, "Inspect the detail view for rationale and provenance.")}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                  <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
+                  <StatusPill text={displayText(rule.learning_scope, "project")} />
+                </div>
+              </div>
+              <div style={{ display: "grid", justifyItems: "end", gap: 10 }}>
+                <div style={{ ...mutedStyle, fontSize: 13, textAlign: "right" }}>
+                  <div>{`applies ${displayText(rule.scope, "unspecified")}`}</div>
+                  {rule.source_project ? <div>{`project ${String(rule.source_project)}`}</div> : null}
+                  <div>{`uses ${String(rule.use_count)}`}</div>
+                </div>
+                {rule.learning_scope === "project" ? (
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onPromoteGlobal(String(rule.name));
+                    }}
+                    style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
+                    disabled={disabled}
+                  >
+                    Promote
+                  </button>
+                ) : null}
+              </div>
             </div>
           </article>
         ))}
@@ -343,6 +423,27 @@ export function CandidatesPanel({
     const status = displayText(candidate.status, "draft_candidate");
     return status === "draft_candidate" || status === "needs_review";
   }).length;
+  const sortedCandidates = [...candidates].sort((a, b) => {
+    const statusRank = (value: unknown) => {
+      const status = displayText(value, "draft_candidate");
+      if (status === "needs_review") return 3;
+      if (status === "draft_candidate") return 2;
+      if (status === "auto_applied" || status === "approved") return 1;
+      return 0;
+    };
+    const confidenceRank = (value: unknown) => {
+      const text = displayText(value, "-");
+      if (text === "high") return 3;
+      if (text === "medium") return 2;
+      if (text === "low") return 1;
+      return 0;
+    };
+    return (
+      statusRank(b.status) - statusRank(a.status) ||
+      confidenceRank(b.confidence) - confidenceRank(a.confidence) ||
+      displayText(a.title, "").localeCompare(displayText(b.title, ""))
+    );
+  });
 
   return (
     <section style={panelStyle}>
@@ -353,6 +454,26 @@ export function CandidatesPanel({
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
         Candidates are unfinalized learning signals. Review them here before they become trusted reusable guidance.
       </p>
+      {candidates.length > 0 ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto",
+            gap: 16,
+            padding: "0 6px 10px",
+            borderBottom: `1px solid ${palette.line}`,
+            color: palette.textMuted,
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          <div>Candidate</div>
+          <div>Review State</div>
+          <div style={{ textAlign: "right" }}>Priority / Action</div>
+        </div>
+      ) : null}
       <div style={{ display: "grid", gap: 12 }}>
         {candidates.length === 0 ? (
           <article style={{ ...cardStyle, padding: 22 }}>
@@ -364,10 +485,16 @@ export function CandidatesPanel({
             </div>
           </article>
         ) : null}
-        {candidates.map((candidate) => (
+        {sortedCandidates.map((candidate) => (
           <article
             key={String(candidate.path)}
-            style={{ ...cardStyle, ...interactiveCardStyle, cursor: "pointer" }}
+            style={{
+              background: "transparent",
+              borderTop: `1px solid ${palette.line}`,
+              padding: "18px 6px",
+              cursor: "pointer",
+              ...interactiveCardStyle,
+            }}
             onClick={() => onSelectCandidate(String(candidate.path))}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -379,50 +506,50 @@ export function CandidatesPanel({
             role="button"
             aria-label={`Open details for candidate ${displayText(candidate.title, "untitled candidate")}`}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <strong>{displayText(candidate.title, "Untitled candidate")}</strong>
-              <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
-            </div>
-            <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(candidate.decision_reason, "Awaiting review or additional evidence.")}</p>
-            <Chips
-              items={[
-                String(candidate.adapter),
-                `decision ${displayText(candidate.decision, "pending")}`,
-                String(candidate.confidence || "-"),
-                candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
-              ].filter(Boolean)}
-            />
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-              <button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onReviewCandidate(String(candidate.path), "approve");
-                }}
-                style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
-                disabled={disabled}
-              >
-                Approve
-              </button>
-              <button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onReviewCandidate(String(candidate.path), "needs-review");
-                }}
-                style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }}
-                disabled={disabled}
-              >
-                Needs Review
-              </button>
-              <button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onReviewCandidate(String(candidate.path), "reject");
-                }}
-                style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }}
-                disabled={disabled}
-              >
-                Reject
-              </button>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto", gap: 16, alignItems: "start" }}>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ display: "block", fontSize: 17, letterSpacing: "-0.02em" }}>{displayText(candidate.title, "Untitled candidate")}</strong>
+                <p style={{ ...mutedStyle, lineHeight: 1.65, marginBottom: 0, marginTop: 6 }}>
+                  {displayText(candidate.decision_reason, "Awaiting review or additional evidence.")}
+                </p>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
+                  <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
+                </div>
+                <div style={{ ...mutedStyle, marginTop: 10, lineHeight: 1.65 }}>
+                  {candidate.matched_rule ? `Matched rule: ${String(candidate.matched_rule)}` : "No matched rule yet."}
+                </div>
+              </div>
+              <div style={{ display: "grid", justifyItems: "end", gap: 10 }}>
+                <div style={{ ...mutedStyle, fontSize: 13, textAlign: "right" }}>
+                  <div>{String(candidate.adapter)}</div>
+                  <div>{`confidence ${String(candidate.confidence || "-")}`}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onReviewCandidate(String(candidate.path), "approve");
+                    }}
+                    style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
+                    disabled={disabled}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onReviewCandidate(String(candidate.path), "needs-review");
+                    }}
+                    style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }}
+                    disabled={disabled}
+                  >
+                    Review
+                  </button>
+                </div>
+              </div>
             </div>
           </article>
         ))}
@@ -444,6 +571,12 @@ export function HistoryTable({
     const haystack = [item.ts, item.scope, item.action, item.rule, item.decision, item.reason].map((v) => String(v ?? "").toLowerCase()).join(" ");
     return haystack.includes(filter.toLowerCase());
   });
+  const grouped = filtered.reduce<Record<string, HistoryRecord[]>>((acc, item) => {
+    const key = formatDayLabel(item.ts);
+    acc[key] ??= [];
+    acc[key].push(item);
+    return acc;
+  }, {});
   return (
     <section style={{ ...panelStyle, marginTop: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
@@ -458,7 +591,7 @@ export function HistoryTable({
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, lineHeight: 1.6 }}>
         History is shown as a lightweight activity timeline so recent promotions, revisions, and review decisions are easier to scan.
       </p>
-      <div style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "grid", gap: 16 }}>
         {filtered.length === 0 ? (
           <article style={{ ...cardStyle, padding: 22 }}>
             <strong style={{ fontSize: 18 }}>No matching history</strong>
@@ -467,25 +600,55 @@ export function HistoryTable({
             </p>
           </article>
         ) : (
-          filtered.map((item, index) => (
-            <article key={`${String(item.ts)}-${index}`} style={{ ...cardStyle, padding: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
-                <div style={{ display: "grid", gap: 8 }}>
-                  <strong style={{ fontSize: 16 }}>{displayText(item.rule, "Unnamed rule")}</strong>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <StatusPill text={displayText(item.action, "event")} tone="success" />
-                    <StatusPill text={displayText(item.scope, "project")} />
-                    {item.decision ? <StatusPill text={displayText(item.decision, "decision")} tone={decisionTone(displayText(item.decision, ""))} /> : null}
+          Object.entries(grouped).map(([day, dayItems]) => (
+            <section key={day} style={{ display: "grid", gap: 4 }}>
+              <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, padding: "0 6px" }}>
+                {day}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1.2fr) minmax(220px, 0.9fr) auto",
+                  gap: 16,
+                  padding: "0 6px 10px",
+                  borderBottom: `1px solid ${palette.line}`,
+                  color: palette.textMuted,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                <div>Event</div>
+                <div>Classification</div>
+                <div style={{ textAlign: "right" }}>Time</div>
+              </div>
+              {dayItems.map((item, index) => (
+                <article
+                  key={`${String(item.ts)}-${index}`}
+                  style={{
+                    background: "transparent",
+                    borderTop: `1px solid ${palette.line}`,
+                    padding: "18px 6px",
+                  }}
+                >
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(220px, 0.9fr) auto", gap: 16, alignItems: "start" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <strong style={{ display: "block", fontSize: 16 }}>{displayText(item.rule, "Unnamed rule")}</strong>
+                      <div style={{ ...mutedStyle, lineHeight: 1.65, marginTop: 6 }}>
+                        {displayText(item.reason, "No additional reason recorded for this event.")}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <StatusPill text={displayText(item.action, "event")} tone="success" />
+                      <StatusPill text={displayText(item.scope, "project")} />
+                      {item.decision ? <StatusPill text={displayText(item.decision, "decision")} tone={decisionTone(displayText(item.decision, ""))} /> : null}
+                    </div>
+                    <div style={{ ...mutedStyle, fontSize: 13, whiteSpace: "nowrap", textAlign: "right" }}>{displayText(item.ts, "-")}</div>
                   </div>
-                </div>
-                <div style={{ ...mutedStyle, fontSize: 13, whiteSpace: "nowrap" }}>{displayText(item.ts, "-")}</div>
-              </div>
-              <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
-                <div style={{ ...mutedStyle, lineHeight: 1.6 }}>
-                  {displayText(item.reason, "No additional reason recorded for this event.")}
-                </div>
-              </div>
-            </article>
+                </article>
+              ))}
+            </section>
           ))
         )}
       </div>
@@ -533,8 +696,8 @@ export function DetailModal({
           overflow: "auto",
           background: "rgba(255,255,255,0.92)",
           border: `1px solid ${palette.line}`,
-          borderRadius: 28,
-          boxShadow: palette.shadow,
+          borderRadius: 24,
+          boxShadow: "0 18px 44px rgba(15, 23, 42, 0.10)",
           padding: 28,
         }}
       >
@@ -577,23 +740,20 @@ export function RuleModalContent({
         ].filter(Boolean)}
       />
 
+      <SectionBlock title="Why this exists">
+        <p style={{ lineHeight: 1.75, margin: 0 }}>{displayText(rule.why, "No rationale has been written yet.")}</p>
+      </SectionBlock>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18 }}>
-        <article style={cardStyle}>
-          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Why this exists</div>
-          <p style={{ lineHeight: 1.7, marginBottom: 0 }}>{displayText(rule.why, "No rationale has been written yet.")}</p>
-        </article>
-        <article style={cardStyle}>
-          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Good pattern</div>
-          <p style={{ lineHeight: 1.7, marginBottom: 0 }}>{displayText(rule.good_pattern, "No good-pattern guidance recorded.")}</p>
-        </article>
-        <article style={cardStyle}>
-          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Avoid</div>
-          <p style={{ lineHeight: 1.7, marginBottom: 0 }}>{displayText(rule.avoid_pattern, "No avoid-pattern guidance recorded.")}</p>
-        </article>
+        <SectionBlock title="Good pattern">
+          <p style={{ lineHeight: 1.75, margin: 0 }}>{displayText(rule.good_pattern, "No good-pattern guidance recorded.")}</p>
+        </SectionBlock>
+        <SectionBlock title="Avoid">
+          <p style={{ lineHeight: 1.75, margin: 0 }}>{displayText(rule.avoid_pattern, "No avoid-pattern guidance recorded.")}</p>
+        </SectionBlock>
       </div>
 
-      <article style={cardStyle}>
-        <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, marginBottom: 10 }}>Provenance</div>
+      <SectionBlock title="Provenance">
         <div style={{ display: "grid", gap: 8 }}>
           {rule.decision_reason ? <div style={mutedStyle}>decision reason: {String(rule.decision_reason)}</div> : null}
           {rule.source_adapter ? <div style={mutedStyle}>source adapter: {String(rule.source_adapter)}</div> : null}
@@ -605,7 +765,7 @@ export function RuleModalContent({
           {rule.related_rule ? <div style={mutedStyle}>related rule: {String(rule.related_rule)}</div> : null}
           {rule.supersedes ? <div style={mutedStyle}>supersedes: {String(rule.supersedes)}</div> : null}
         </div>
-      </article>
+      </SectionBlock>
 
       {rule.learning_scope === "project" ? (
         <div>
@@ -649,10 +809,9 @@ export function CandidateModalContent({
           candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
         ].filter(Boolean)}
       />
-      <article style={cardStyle}>
-        <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700, marginBottom: 10 }}>Structured field diffs</div>
+      <SectionBlock title="Structured field diffs">
         {renderFieldDiffs(candidate.field_diffs)}
-      </article>
+      </SectionBlock>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Approve</button>
         <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Needs Review</button>

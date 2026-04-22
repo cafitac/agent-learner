@@ -60,16 +60,16 @@ export const pageStyle: React.CSSProperties = {
 export const panelStyle: React.CSSProperties = {
   background: palette.panel,
   border: `1px solid ${palette.line}`,
-  borderRadius: 28,
-  padding: 24,
-  boxShadow: palette.shadowSoft,
+  borderRadius: 22,
+  padding: 22,
+  boxShadow: "0 6px 18px rgba(15, 23, 42, 0.04)",
   backdropFilter: "blur(18px)",
 };
 
 export const cardStyle: React.CSSProperties = {
   background: palette.panelStrong,
   border: `1px solid ${palette.line}`,
-  borderRadius: 22,
+  borderRadius: 16,
   padding: 18,
-  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
+  boxShadow: "0 2px 10px rgba(15, 23, 42, 0.03)",
 };

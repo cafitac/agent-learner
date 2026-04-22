@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CandidateModalContent, CandidatesPanel, CountList, DetailModal, HistoryTable, MetricCard, ProjectSelector, RuleModalContent, RulesPanel } from "./components";
-import { Summary, pageStyle, panelStyle, palette } from "./types";
+import { CandidateModalContent, CandidatesPanel, CountList, DetailModal, HistoryTable, ProjectSelector, RuleModalContent, RulesPanel, StatStrip } from "./components";
+import { Summary, cardStyle, pageStyle, panelStyle, palette } from "./types";
 
 function textValue(value: unknown) {
   return String(value ?? "").trim();
@@ -14,8 +14,14 @@ function isLowSignalDraft(rule: Record<string, unknown>) {
 }
 
 export function App() {
+  const getInitialPage = () => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash === "rules" || hash === "candidates" || hash === "history") return hash as "rules" | "candidates" | "history";
+    return "overview" as const;
+  };
   const [summary, setSummary] = useState<Summary | null>(null);
   const [scope, setScope] = useState<"curated" | "drafts" | "local" | "global">("curated");
+  const [page, setPage] = useState<"overview" | "rules" | "candidates" | "history">(getInitialPage);
   const [status, setStatus] = useState("Loading...");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const [actionPending, setActionPending] = useState(false);
@@ -55,6 +61,16 @@ export function App() {
       setStatus(String(err));
       setStatusTone("error");
     });
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash === "rules" || hash === "candidates" || hash === "history") setPage(hash);
+      else setPage("overview");
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   useEffect(() => {
@@ -174,46 +190,49 @@ export function App() {
     [summary, selectedCandidatePath],
   );
 
+  const navItems: Array<{ key: "overview" | "rules" | "candidates" | "history"; label: string }> = [
+    { key: "overview", label: "Overview" },
+    { key: "rules", label: "Rules" },
+    { key: "candidates", label: "Candidates" },
+    { key: "history", label: "History" },
+  ];
+
   return (
     <div style={{ ...pageStyle, scrollBehavior: "smooth" }}>
       <div style={{ maxWidth: 1360, margin: "0 auto", padding: "40px 24px 72px" }}>
         <section style={{ ...panelStyle, borderRadius: 36, padding: 32, boxShadow: palette.shadow }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24, alignItems: "end" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, alignItems: "start" }}>
             <div>
               <div style={{ display: "inline-flex", alignItems: "center", padding: "8px 12px", borderRadius: 999, background: "rgba(255,255,255,0.72)", border: `1px solid ${palette.line}`, color: palette.textMuted, fontSize: 13, fontWeight: 600 }}>
                 agent learning control plane
               </div>
-              <h1 style={{ marginTop: 18, marginBottom: 12, fontSize: "clamp(36px, 6vw, 56px)", lineHeight: 1.02, letterSpacing: "-0.06em" }}>A cleaner view of reusable learning.</h1>
-              <p style={{ color: palette.textMuted, marginTop: 0, marginBottom: 0, fontSize: 18, lineHeight: 1.6, maxWidth: 720 }}>
-                Review project-local rules, global learning assets, candidates, and promotion history from one calm dashboard.
+              <h1 style={{ marginTop: 16, marginBottom: 10, fontSize: "clamp(30px, 4.5vw, 42px)", lineHeight: 1.06, letterSpacing: "-0.05em" }}>Reusable learning, organized by task.</h1>
+              <p style={{ color: palette.textMuted, marginTop: 0, marginBottom: 0, fontSize: 16, lineHeight: 1.6, maxWidth: 640 }}>
+                Use overview for status, rules for reusable guidance, candidates for triage, and history for audit.
               </p>
             </div>
-            <div style={{ ...panelStyle, padding: 20, borderRadius: 24, background: "rgba(255,255,255,0.7)" }}>
+            <div style={{ ...panelStyle, padding: 18, borderRadius: 24, background: "rgba(255,255,255,0.7)" }}>
               <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Runtime Status</div>
-              <p style={{ color: statusTone === "error" ? palette.red : statusTone === "success" ? palette.green : palette.textMuted, marginTop: 10, marginBottom: 0, lineHeight: 1.6 }}>
+              <p style={{ color: statusTone === "error" ? palette.red : statusTone === "success" ? palette.green : palette.textMuted, marginTop: 8, marginBottom: 0, lineHeight: 1.55, fontSize: 14 }}>
                 {status}
               </p>
             </div>
           </div>
           <div style={{ height: 1, background: palette.line, margin: "24px 0" }} />
-          <nav style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18, position: "sticky", top: 12, zIndex: 20 }}>
-            {[
-              ["overview", "Overview"],
-              ["rules", "Rules"],
-              ["candidates", "Candidates"],
-              ["history", "History"],
-            ].map(([id, label]) => (
+          <nav style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+            {navItems.map(({ key, label }) => (
               <a
-                key={id}
-                href={`#${id}`}
+                key={key}
+                href={key === "overview" ? "#" : `#${key}`}
+                onClick={() => setPage(key)}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   padding: "10px 14px",
                   borderRadius: 999,
-                  border: `1px solid ${palette.line}`,
-                  background: "rgba(255,255,255,0.74)",
-                  color: palette.text,
+                  border: `1px solid ${page === key ? palette.text : palette.line}`,
+                  background: page === key ? palette.text : "rgba(255,255,255,0.74)",
+                  color: page === key ? "white" : palette.text,
                   textDecoration: "none",
                   fontWeight: 600,
                   fontSize: 14,
@@ -227,7 +246,7 @@ export function App() {
           <p style={{ color: statusTone === "error" ? palette.red : statusTone === "success" ? palette.green : palette.textMuted, marginTop: 0 }}>
             {status}
           </p>
-          {summary ? (
+          {summary && page === "overview" ? (
             <>
               <ProjectSelector
                 summary={summary}
@@ -236,43 +255,80 @@ export function App() {
                 promoteAllProjects={promoteAllProjects}
                 setPromoteAllProjects={setPromoteAllProjects}
               />
-              <div id="overview" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginTop: 22, scrollMarginTop: 24 }}>
-                <MetricCard label="Local Rules" value={summary.overview.local_rules} />
-                <MetricCard label="Global Rules" value={summary.overview.global_rules} />
-                <MetricCard label="Merged Rules" value={summary.overview.merged_rules} />
-                <MetricCard label="Curated Merged" value={((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => !isLowSignalDraft(rule)).length} />
-                <MetricCard label="Candidates" value={summary.overview.candidates} />
-                <MetricCard label="Local History" value={summary.overview.local_history_entries} />
-                <MetricCard label="Global History" value={summary.overview.global_history_entries} />
+              <div id="overview" style={{ marginTop: 22 }}>
+                <StatStrip
+                  items={[
+                    { label: "Local Rules", value: summary.overview.local_rules },
+                    { label: "Curated", value: ((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => !isLowSignalDraft(rule)).length },
+                    { label: "Candidates", value: summary.overview.candidates },
+                    { label: "History", value: summary.overview.global_history_entries },
+                  ]}
+                />
+              </div>
+              <div style={{ marginTop: 24, display: "grid", gap: 12 }}>
+                <article style={cardStyle}>
+                  <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Recommended next area</div>
+                  <h3 style={{ marginBottom: 8, fontSize: 22, letterSpacing: "-0.03em" }}>Start with curated rules</h3>
+                  <p style={{ marginTop: 0, color: palette.textMuted, lineHeight: 1.65 }}>
+                    Curated rules are the fastest way to understand what this project has already learned and what guidance is most reusable.
+                  </p>
+                  <a
+                    href="#rules"
+                    onClick={() => setPage("rules")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      marginTop: 8,
+                      padding: "10px 14px",
+                      borderRadius: 999,
+                      background: palette.blue,
+                      color: "white",
+                      textDecoration: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Open Rules
+                  </a>
+                </article>
+                <article style={{ ...cardStyle, display: "grid", gap: 10 }}>
+                  <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>At a glance</div>
+                  <div style={{ color: palette.textMuted, lineHeight: 1.65 }}>
+                    {summary.overview.candidates > 0
+                      ? `${summary.overview.candidates} candidate items are waiting for review.`
+                      : "There are no pending candidates right now."}
+                  </div>
+                  <div style={{ color: palette.textMuted, lineHeight: 1.65 }}>
+                    {summary.overview.global_history_entries > 0
+                      ? `${summary.overview.global_history_entries} global history event(s) are available for audit.`
+                      : "No global history has been recorded yet."}
+                  </div>
+                </article>
               </div>
             </>
           ) : null}
         </section>
 
-        {summary ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginTop: 24 }}>
-            <CountList title="History by Action" data={summary.history_summary.by_action} />
-            <CountList title="History by Adapter" data={summary.history_summary.by_adapter} />
-            <CountList title="History by Decision" data={summary.history_summary.by_decision} />
+        {page === "rules" ? (
+          <div id="rules" style={{ marginTop: 24 }}>
+            <RulesPanel
+              scope={scope}
+              setScope={setScope}
+              rules={filteredRules}
+              counts={ruleCounts}
+              ruleFilter={ruleFilter}
+              setRuleFilter={setRuleFilter}
+              onPromoteGlobal={promoteGlobal}
+              onSelectRule={(name) => {
+                setSelectedRuleName(name);
+                setActiveModal({ type: "rule", key: name });
+              }}
+              disabled={actionPending}
+            />
           </div>
         ) : null}
 
-        <div id="rules" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginTop: 24, alignItems: "start", scrollMarginTop: 24 }}>
-          <RulesPanel
-            scope={scope}
-            setScope={setScope}
-            rules={filteredRules}
-            counts={ruleCounts}
-            ruleFilter={ruleFilter}
-            setRuleFilter={setRuleFilter}
-            onPromoteGlobal={promoteGlobal}
-            onSelectRule={(name) => {
-              setSelectedRuleName(name);
-              setActiveModal({ type: "rule", key: name });
-            }}
-            disabled={actionPending}
-          />
-          <div id="candidates" style={{ scrollMarginTop: 24 }}>
+        {page === "candidates" ? (
+          <div id="candidates" style={{ marginTop: 24 }}>
             <CandidatesPanel
               candidates={summary?.candidates ?? []}
               onReviewCandidate={reviewCandidate}
@@ -283,10 +339,22 @@ export function App() {
               disabled={actionPending}
             />
           </div>
-        </div>
-        <div id="history" style={{ scrollMarginTop: 24 }}>
-          <HistoryTable items={summary?.recent_history ?? []} filter={historyFilter} setFilter={setHistoryFilter} />
-        </div>
+        ) : null}
+
+        {page === "history" ? (
+          <>
+            {summary ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginTop: 24 }}>
+                <CountList title="History by Action" data={summary.history_summary.by_action} />
+                <CountList title="History by Adapter" data={summary.history_summary.by_adapter} />
+                <CountList title="History by Decision" data={summary.history_summary.by_decision} />
+              </div>
+            ) : null}
+            <div id="history" style={{ marginTop: 24 }}>
+              <HistoryTable items={summary?.recent_history ?? []} filter={historyFilter} setFilter={setHistoryFilter} />
+            </div>
+          </>
+        ) : null}
       </div>
 
       {activeModal?.type === "rule" && selectedRule ? (
