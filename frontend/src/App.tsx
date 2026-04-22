@@ -13,6 +13,19 @@ function isLowSignalDraft(rule: Record<string, unknown>) {
   return status === "draft" && !summary && !scopeText;
 }
 
+function isPlaceholderRuleName(name: unknown) {
+  const value = textValue(name);
+  return value.startsWith("learned-rule-draft-") || value.startsWith("session-learning-");
+}
+
+function isCuratedRule(rule: Record<string, unknown>) {
+  const status = textValue(rule.status);
+  const summary = textValue(rule.summary);
+  const scopeText = textValue(rule.scope);
+  const why = textValue(rule.why);
+  return status === "approved" && !!summary && !!scopeText && !!why && !isPlaceholderRuleName(rule.name);
+}
+
 export function App() {
   const getInitialPage = () => {
     const hash = window.location.hash.replace("#", "");
@@ -41,7 +54,7 @@ export function App() {
     const json = (await res.json()) as Summary;
     setSummary(json);
     setSelectedProject(json.project.root);
-    const curatedRules = ((json.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => !isLowSignalDraft(rule));
+    const curatedRules = ((json.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => isCuratedRule(rule));
     setSelectedRuleName((prev) => {
       const available = new Set(curatedRules.map((rule) => String(rule.name)));
       if (prev && available.has(prev)) return prev;
@@ -141,7 +154,7 @@ export function App() {
 
   const ruleCollections = useMemo(() => {
     if (!summary) return null;
-    const curated = ((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => !isLowSignalDraft(rule));
+    const curated = ((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => isCuratedRule(rule));
     const local = (summary.local.rules as Record<string, unknown>[]) ?? [];
     const global = (summary.global.rules as Record<string, unknown>[]) ?? [];
     const drafts = [...local, ...global].filter((rule) => {
@@ -259,7 +272,7 @@ export function App() {
                 <StatStrip
                   items={[
                     { label: "Local Rules", value: summary.overview.local_rules },
-                    { label: "Curated", value: ((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => !isLowSignalDraft(rule)).length },
+                    { label: "Curated", value: ((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => isCuratedRule(rule)).length },
                     { label: "Candidates", value: summary.overview.candidates },
                     { label: "History", value: summary.overview.global_history_entries },
                   ]}

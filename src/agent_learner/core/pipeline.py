@@ -489,7 +489,7 @@ def auto_promote_candidate_as_rule(
 
 
 def auto_rule_name(lifecycle: LearningLifecycle, candidate: LearningCandidate, comparison: CandidateComparison) -> str:
-    base = slugify(candidate.title)
+    base = canonical_rule_slug(candidate)
     if comparison.decision == "fork_rule" and comparison.matched_rule:
         base = f"{comparison.matched_rule}-fork-{candidate.adapter}"
     candidate_name = base
@@ -619,6 +619,19 @@ def should_reject_candidate(candidate: LearningCandidate) -> bool:
     tokens = tokenize_for_compare(candidate.suggested_rule)
     useful = [token for token in tokens if token not in GENERIC_REJECTION_TERMS and token not in STOPWORDS]
     return len(useful) < 2
+
+
+def canonical_rule_slug(candidate: LearningCandidate) -> str:
+    title_slug = slugify(candidate.title)
+    if title_slug and not title_slug.startswith(("learned-rule-draft", "session-learning", "candidate")):
+        return title_slug
+    summary_slug = slugify(candidate.summary)
+    if summary_slug and not summary_slug.startswith(("learned-rule-draft", "session-learning", "candidate")):
+        return summary_slug
+    rule_slug = slugify(candidate.suggested_rule)
+    if rule_slug and not rule_slug.startswith(("learned-rule-draft", "session-learning", "candidate")):
+        return rule_slug
+    return title_slug or summary_slug or rule_slug or "learning-rule"
 
 
 def describe_field_diffs(candidate: LearningCandidate, rule: LearningRule) -> dict[str, str]:
