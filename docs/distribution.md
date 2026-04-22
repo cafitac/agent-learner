@@ -88,7 +88,7 @@ After publishing:
 Use `docs/publish-smoke-checklist.md` as the exact command matrix.
 For npm prerelease checks before the Python core reaches production PyPI, set
 `AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple` and, when exercising
-the web extra, `AGENT_LEARNER_UVX_EXTRA_ARGS="--with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match"`.
+the web extra, `AGENT_LEARNER_UVX_EXTRA_ARGS="--refresh --with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match"`.
 This keeps the Python core rehearsal on TestPyPI while avoiding placeholder
 TestPyPI dependency packages.
 

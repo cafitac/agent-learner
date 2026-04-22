@@ -22,7 +22,7 @@ web dependencies away from placeholder TestPyPI packages:
 
 ```bash
 AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple \
-AGENT_LEARNER_UVX_EXTRA_ARGS="--with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match" \
+AGENT_LEARNER_UVX_EXTRA_ARGS="--refresh --with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match" \
   npx @cafitac/agent-learner@next core --help
 ```
 
