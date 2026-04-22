@@ -103,7 +103,8 @@ def test_retrieve_respects_token_budget_and_status_weight(tmp_path: Path) -> Non
     assert [result.rule.name for result in results] == [approved.name]
 
 
-def test_render_codex_learning_context_only_includes_selected_rules(tmp_path: Path) -> None:
+def test_render_codex_learning_context_only_includes_selected_rules(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     promote_rule(
         lifecycle,
@@ -134,7 +135,8 @@ def test_render_codex_learning_context_only_includes_selected_rules(tmp_path: Pa
     assert "docs-refresh" not in context
 
 
-def test_retrieve_respects_context_and_model_gating(tmp_path: Path) -> None:
+def test_retrieve_respects_context_and_model_gating(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
     write_current_model(tmp_path, "claude-opus-4-7")
     lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
@@ -164,8 +166,8 @@ def test_retrieve_respects_context_and_model_gating(tmp_path: Path) -> None:
     assert [result.rule.name for result in results] == ["python-approved"]
 
 
-def test_render_codex_learning_context_merges_global_brain_rules(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-brain"))
+def test_render_codex_learning_context_merges_global_learning_rules(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     local_lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     promote_rule(
         local_lifecycle,
@@ -184,7 +186,7 @@ def test_render_codex_learning_context_merges_global_brain_rules(monkeypatch, tm
         scope="migrations",
         task_types=["refactor"],
         projects=["*"],
-        brain_scope="global",
+        learning_scope="global",
     )
 
     context = render_codex_learning_context(
@@ -195,6 +197,45 @@ def test_render_codex_learning_context_merges_global_brain_rules(monkeypatch, tm
     )
     assert context is not None
     assert "global-rule" in context
+
+
+def test_lifecycle_frontmatter_decodes_quoted_string_values(tmp_path: Path) -> None:
+    rule_path = tmp_path / ".agent-learner" / "learning" / "approved" / "quoted-status.md"
+    rule_path.parent.mkdir(parents=True, exist_ok=True)
+    rule_path.write_text(
+        """---
+name: quoted-status
+description: "Quoted description"
+status: "approved"
+learning_scope: "global"
+scope: "testing"
+---
+
+## Rule
+Keep tests updated.
+
+## Summary
+Quoted description
+
+## Why
+Because verification matters.
+
+## Scope
+testing
+
+## Good pattern
+Update tests with code.
+
+## Avoid
+Leave tests stale.
+""",
+        encoding="utf-8",
+    )
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    rule = lifecycle.load_rule(rule_path)
+    assert rule.status == "approved"
+    assert rule.learning_scope == "global"
+    assert rule.summary == "Quoted description"
 
 
 def test_retrieve_uses_index_to_avoid_loading_every_rule(tmp_path: Path, monkeypatch) -> None:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from agent_learner import __version__
 
-from .brain import apply_candidate_action, promote_rule_to_global
+from .global_learning import apply_candidate_action, promote_rule_to_global
 from .dashboard import build_dashboard_summary
 from .storage import read_project_registry
 
@@ -70,12 +70,16 @@ def create_fastapi_app(project_root: Path):
         target_root = Path(project).resolve() if project else project_root
         return JSONResponse(build_dashboard_summary(target_root))
 
+    def resolve_target_root(project: object | None) -> Path:
+        return Path(str(project)).resolve() if project else project_root
+
     @app.post("/api/promote-global")
     async def post_promote_global(payload: dict[str, object]) -> JSONResponse:
         name = str(payload.get("name") or "")
         if not name:
             raise HTTPException(status_code=400, detail="missing rule name")
-        return JSONResponse(promote_rule_to_global(project_root, name, all_projects=bool(payload.get("all_projects", False))))
+        target_root = resolve_target_root(payload.get("project"))
+        return JSONResponse(promote_rule_to_global(target_root, name, all_projects=bool(payload.get("all_projects", False))))
 
     @app.post("/api/review-candidate")
     async def post_review_candidate(payload: dict[str, object]) -> JSONResponse:
@@ -83,7 +87,8 @@ def create_fastapi_app(project_root: Path):
         action = str(payload.get("action") or "")
         if not candidate or action not in {"approve", "reject", "needs-review"}:
             raise HTTPException(status_code=400, detail="invalid candidate action payload")
-        return JSONResponse(apply_candidate_action(project_root, candidate, action, reason=str(payload.get("reason") or "") or None))
+        target_root = resolve_target_root(payload.get("project"))
+        return JSONResponse(apply_candidate_action(target_root, candidate, action, reason=str(payload.get("reason") or "") or None))
 
     app.mount("/assets", StaticFiles(directory=dist_dir / "assets"), name="assets")
 

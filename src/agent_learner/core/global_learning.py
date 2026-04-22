@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from .lifecycle import LearningLifecycle
@@ -14,7 +13,7 @@ def promote_rule_to_global(project_root: Path, name: str, *, all_projects: bool 
     local_lifecycle = LearningLifecycle(resolve_learning_root(project_root))
     global_lifecycle = LearningLifecycle(ensure_global_learning_root())
     rule = local_lifecycle.load_rule(name, statuses=["approved", "needs_review", "draft"])
-    rule.brain_scope = "global"
+    rule.learning_scope = "global"
     rule.source_project = project_root.name
     rule.projects = ["*"] if all_projects else sorted(set((rule.projects or []) + [project_root.name]))
     path = global_lifecycle.promote(rule)
@@ -29,7 +28,7 @@ def promote_rule_to_global(project_root: Path, name: str, *, all_projects: bool 
             "target_scope": "global",
         },
     )
-    return {"rule": rule.name, "path": str(path), "projects": rule.projects, "brain_scope": rule.brain_scope}
+    return {"rule": rule.name, "path": str(path), "projects": rule.projects, "learning_scope": rule.learning_scope}
 
 
 def sync_rules_to_global(
@@ -47,7 +46,7 @@ def sync_rules_to_global(
     for rule in local_lifecycle.list_rules(statuses=["approved"]):
         if rule.promote_count < min_promote_count or rule.use_count < min_use_count:
             continue
-        rule.brain_scope = "global"
+        rule.learning_scope = "global"
         rule.source_project = project_root.name
         rule.projects = ["*"] if all_projects else sorted(set((rule.projects or []) + [project_root.name]))
         path = global_lifecycle.promote(rule)

@@ -15,20 +15,20 @@ def agent_learner_home() -> Path:
     return (Path.home() / ".agent-learner").resolve()
 
 
-def global_brain_root() -> Path:
+def global_learning_home() -> Path:
     return agent_learner_home() / "global"
 
 
 def global_learning_root() -> Path:
-    return global_brain_root() / "learning"
+    return global_learning_home() / "learning"
 
 
 def global_history_path() -> Path:
-    return global_brain_root() / "history" / "promotions.jsonl"
+    return global_learning_home() / "history" / "promotions.jsonl"
 
 
 def project_registry_path() -> Path:
-    return global_brain_root() / "projects.json"
+    return global_learning_home() / "projects.json"
 
 
 def canonical_learning_root(project_root: Path) -> Path:

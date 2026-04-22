@@ -1,11 +1,88 @@
 import React from "react";
-import { CandidateRecord, HistoryRecord, RuleRecord, Summary, cardStyle, panelStyle } from "./types";
+import { CandidateRecord, HistoryRecord, RuleRecord, Summary, cardStyle, palette, panelStyle } from "./types";
+
+const sectionTitleStyle: React.CSSProperties = {
+  marginTop: 0,
+  marginBottom: 14,
+  fontSize: 24,
+  letterSpacing: "-0.02em",
+};
+
+const mutedStyle: React.CSSProperties = {
+  color: palette.textMuted,
+};
+
+const buttonBaseStyle: React.CSSProperties = {
+  borderRadius: 999,
+  padding: "10px 16px",
+  border: `1px solid ${palette.lineStrong}`,
+  background: "rgba(255,255,255,0.88)",
+  color: palette.text,
+  fontWeight: 600,
+  letterSpacing: "-0.01em",
+  cursor: "pointer",
+  transition: "all 160ms ease",
+};
+
+function toneStyle(tone: "primary" | "danger" | "neutral"): React.CSSProperties {
+  if (tone === "primary") {
+    return { ...buttonBaseStyle, background: palette.blue, borderColor: palette.blue, color: "white", boxShadow: `0 10px 24px ${palette.blueSoft}` };
+  }
+  if (tone === "danger") {
+    return { ...buttonBaseStyle, background: palette.red, borderColor: palette.red, color: "white", boxShadow: `0 10px 24px ${palette.redSoft}` };
+  }
+  return buttonBaseStyle;
+}
+
+function StatusPill({ text, tone = "neutral" }: { text: string; tone?: "neutral" | "success" | "warning" }) {
+  const colors =
+    tone === "success"
+      ? { background: palette.greenSoft, color: palette.green, border: palette.greenSoft }
+      : tone === "warning"
+        ? { background: palette.redSoft, color: palette.red, border: palette.redSoft }
+        : { background: "rgba(17,17,17,0.04)", color: palette.textMuted, border: "rgba(17,17,17,0.06)" };
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        background: colors.background,
+        color: colors.color,
+        border: `1px solid ${colors.border}`,
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function displayText(value: unknown, fallback: string) {
+  const text = String(value ?? "").trim();
+  return text ? text : fallback;
+}
+
+function candidateTone(status: string) {
+  if (status === "approved" || status === "auto_applied") return "success";
+  if (status === "needs_review" || status === "draft_candidate") return "warning";
+  return "neutral";
+}
+
+function decisionTone(decision: string) {
+  if (decision === "refresh_existing" || decision === "revise_existing" || decision === "new_rule") return "success";
+  if (decision === "reject_candidate") return "warning";
+  return "neutral";
+}
 
 export function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <article style={cardStyle}>
-      <div style={{ fontSize: 12, textTransform: "uppercase", color: "#56636b", letterSpacing: "0.08em" }}>{label}</div>
-      <strong style={{ display: "block", fontSize: 28, marginTop: 8, color: "#0d6b5f" }}>{String(value)}</strong>
+    <article style={{ ...cardStyle, padding: 20 }}>
+      <div style={{ fontSize: 12, textTransform: "uppercase", color: palette.textMuted, letterSpacing: "0.08em", fontWeight: 700 }}>{label}</div>
+      <strong style={{ display: "block", fontSize: 34, marginTop: 10, color: palette.text, letterSpacing: "-0.04em" }}>{String(value)}</strong>
     </article>
   );
 }
@@ -13,11 +90,11 @@ export function MetricCard({ label, value }: { label: string; value: string | nu
 export function CountList({ title, data }: { title: string; data: Record<string, number> }) {
   return (
     <section style={panelStyle}>
-      <h3 style={{ marginTop: 0 }}>{title}</h3>
+      <h3 style={{ ...sectionTitleStyle, fontSize: 20 }}>{title}</h3>
       <div style={{ display: "grid", gap: 8 }}>
         {Object.entries(data).map(([key, count]) => (
-          <div key={key} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(216,207,191,0.6)", paddingBottom: 6 }}>
-            <span style={{ color: "#56636b" }}>{key}</span>
+          <div key={key} style={{ display: "flex", justifyContent: "space-between", borderBottom: `1px solid ${palette.line}`, paddingBottom: 8 }}>
+            <span style={{ color: palette.textMuted }}>{key}</span>
             <strong>{count}</strong>
           </div>
         ))}
@@ -33,12 +110,13 @@ export function Chips({ items }: { items: string[] }) {
         <span
           key={item}
           style={{
-            border: "1px solid #d8cfbf",
+            border: `1px solid ${palette.line}`,
             borderRadius: 999,
-            padding: "4px 8px",
+            padding: "6px 10px",
             fontSize: 12,
-            color: "#56636b",
-            background: "rgba(13,107,95,0.04)",
+            fontWeight: 600,
+            color: palette.textMuted,
+            background: "rgba(17,17,17,0.03)",
           }}
         >
           {item}
@@ -63,19 +141,19 @@ export function ProjectSelector({
 }) {
   return (
     <>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", color: "#56636b", marginTop: 12 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", color: palette.textMuted, marginTop: 14 }}>
         <span>project: {summary.project.name ?? "-"}</span>
         <span>model: {summary.project.current_model ?? "-"}</span>
         <span>languages: {summary.project.languages.join(", ") || "-"}</span>
         <span>frameworks: {summary.project.frameworks.join(", ") || "-"}</span>
       </div>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
-        <label style={{ color: "#56636b", fontSize: 14 }}>
+        <label style={{ color: palette.textMuted, fontSize: 14 }}>
           project
           <select
             value={selectedProject}
             onChange={(event) => setSelectedProject(event.target.value)}
-            style={{ marginLeft: 8, padding: "8px 10px", borderRadius: 10, border: "1px solid #d8cfbf" }}
+            style={{ marginLeft: 8, padding: "10px 12px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, background: "rgba(255,255,255,0.88)", color: palette.text }}
           >
             {summary.known_projects.map((project) => (
               <option key={project.root} value={project.root}>
@@ -84,7 +162,7 @@ export function ProjectSelector({
             ))}
           </select>
         </label>
-        <label style={{ color: "#56636b", fontSize: 14 }}>
+        <label style={{ color: palette.textMuted, fontSize: 14 }}>
           <input
             type="checkbox"
             checked={promoteAllProjects}
@@ -102,74 +180,97 @@ export function RulesPanel({
   scope,
   setScope,
   rules,
+  counts,
   onPromoteGlobal,
   selectedRuleName,
   onSelectRule,
   disabled = false,
 }: {
-  scope: "merged" | "local" | "global";
-  setScope: (value: "merged" | "local" | "global") => void;
+  scope: "curated" | "drafts" | "local" | "global";
+  setScope: (value: "curated" | "drafts" | "local" | "global") => void;
   rules: RuleRecord[];
+  counts: Record<"curated" | "drafts" | "local" | "global", number>;
   onPromoteGlobal: (name: string) => void;
   selectedRuleName: string;
   onSelectRule: (name: string) => void;
   disabled?: boolean;
 }) {
+  const tabs: Array<{ key: "curated" | "drafts" | "local" | "global"; label: string }> = [
+    { key: "curated", label: "Curated" },
+    { key: "drafts", label: "Drafts" },
+    { key: "local", label: "Local" },
+    { key: "global", label: "Global" },
+  ];
+
+  const helperText =
+    scope === "curated"
+      ? "Curated surfaces the highest-signal reusable rules first and hides empty draft placeholders."
+      : scope === "drafts"
+        ? "Drafts collects unfinished or low-signal rules that still need curation before they become reliable guidance."
+        : scope === "local"
+          ? "Local shows everything stored for the current project, including unfinished work."
+          : "Global shows shared learning that has been promoted for cross-project reuse.";
+
   return (
     <section style={panelStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-        <h2 style={{ marginTop: 0 }}>Rules</h2>
+        <h2 style={sectionTitleStyle}>Rules</h2>
         <div style={{ display: "flex", gap: 8 }}>
-          {(["merged", "local", "global"] as const).map((key) => (
+          {tabs.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setScope(key)}
               style={{
-                borderRadius: 999,
-                padding: "8px 12px",
-                border: "1px solid #d8cfbf",
-                background: scope === key ? "#0d6b5f" : "white",
-                color: scope === key ? "white" : "#172126",
+                ...buttonBaseStyle,
+                background: scope === key ? palette.text : "rgba(255,255,255,0.72)",
+                borderColor: scope === key ? palette.text : palette.lineStrong,
+                color: scope === key ? "white" : palette.text,
                 opacity: disabled ? 0.6 : 1,
               }}
               disabled={disabled}
             >
-              {key}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {label}
+                <span style={{ padding: "2px 8px", borderRadius: 999, background: scope === key ? "rgba(255,255,255,0.16)" : "rgba(17,17,17,0.05)", fontSize: 12 }}>
+                  {counts[key]}
+                </span>
+              </span>
             </button>
           ))}
         </div>
       </div>
+      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>{helperText}</p>
       <div style={{ display: "grid", gap: 12 }}>
-        {rules.length === 0 ? <p style={{ color: "#56636b" }}>No rules available for this scope yet.</p> : null}
+        {rules.length === 0 ? <p style={mutedStyle}>No rules available for this scope yet.</p> : null}
         {rules.map((rule) => (
           <article
             key={String(rule.name)}
             style={{
               ...cardStyle,
-              outline: selectedRuleName === String(rule.name) ? "2px solid #0d6b5f" : "none",
+              outline: selectedRuleName === String(rule.name) ? `2px solid ${palette.blue}` : "none",
               cursor: "pointer",
             }}
             onClick={() => onSelectRule(String(rule.name))}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <strong>{String(rule.name)}</strong>
-              <span>{String(rule.status)}</span>
+              <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
             </div>
-            <p>{String(rule.summary)}</p>
+            <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
             <Chips
               items={[
-                `brain ${String(rule.brain_scope)}`,
-                `scope ${String(rule.scope)}`,
+                `scope ${String(rule.learning_scope)}`,
+                `applies ${displayText(rule.scope, "unspecified")}`,
                 `uses ${String(rule.use_count)}`,
                 rule.source_project ? `project ${String(rule.source_project)}` : "",
               ].filter(Boolean)}
             />
-            {rule.related_rule ? <div style={{ color: "#56636b", marginTop: 8 }}>related: {String(rule.related_rule)}</div> : null}
-            {rule.brain_scope === "project" ? (
+            {rule.related_rule ? <div style={{ ...mutedStyle, marginTop: 10 }}>related: {String(rule.related_rule)}</div> : null}
+            {rule.learning_scope === "project" ? (
               <div style={{ marginTop: 10 }}>
                 <button
                   onClick={() => onPromoteGlobal(String(rule.name))}
-                  style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #0d6b5f", background: "#0d6b5f", color: "white", opacity: disabled ? 0.6 : 1 }}
+                  style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
                   disabled={disabled}
                 >
                   Promote Global
@@ -194,33 +295,33 @@ export function RuleDetailPanel({
 }) {
   return (
     <section style={panelStyle}>
-      <h2 style={{ marginTop: 0 }}>Rule Detail</h2>
+      <h2 style={sectionTitleStyle}>Rule Detail</h2>
       {!rule ? (
-        <p style={{ color: "#56636b" }}>Select a rule to inspect provenance, usage, and scope.</p>
+        <p style={mutedStyle}>Select a rule to inspect provenance, usage, and scope.</p>
       ) : (
-        <article style={cardStyle}>
+        <article style={{ ...cardStyle, position: "sticky", top: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
             <strong>{String(rule.name)}</strong>
-            <span>{String(rule.status)}</span>
+            <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
           </div>
-          <p>{String(rule.summary)}</p>
+          <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
           <Chips
             items={[
-              `brain ${String(rule.brain_scope)}`,
-              `scope ${String(rule.scope)}`,
+              `scope ${String(rule.learning_scope)}`,
+              `applies ${displayText(rule.scope, "unspecified")}`,
               `uses ${String(rule.use_count)}`,
               `promote ${String(rule.promote_count)}`,
               `refresh ${String(rule.refresh_count)}`,
             ]}
           />
-          {rule.source_project ? <div style={{ color: "#56636b", marginTop: 8 }}>source project: {String(rule.source_project)}</div> : null}
-          {rule.related_rule ? <div style={{ color: "#56636b", marginTop: 8 }}>related rule: {String(rule.related_rule)}</div> : null}
-          {rule.supersedes ? <div style={{ color: "#56636b", marginTop: 8 }}>supersedes: {String(rule.supersedes)}</div> : null}
-          {rule.brain_scope === "project" ? (
+          {rule.source_project ? <div style={{ ...mutedStyle, marginTop: 8 }}>source project: {String(rule.source_project)}</div> : null}
+          {rule.related_rule ? <div style={{ ...mutedStyle, marginTop: 8 }}>related rule: {String(rule.related_rule)}</div> : null}
+          {rule.supersedes ? <div style={{ ...mutedStyle, marginTop: 8 }}>supersedes: {String(rule.supersedes)}</div> : null}
+          {rule.learning_scope === "project" ? (
             <div style={{ marginTop: 12 }}>
               <button
                 onClick={() => onPromoteGlobal(String(rule.name))}
-                style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #0d6b5f", background: "#0d6b5f", color: "white", opacity: disabled ? 0.6 : 1 }}
+                style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
                 disabled={disabled}
               >
                 Promote Global
@@ -246,45 +347,68 @@ export function CandidatesPanel({
   onSelectCandidate: (path: string) => void;
   disabled?: boolean;
 }) {
+  const pendingCount = candidates.filter((candidate) => {
+    const status = displayText(candidate.status, "draft_candidate");
+    return status === "draft_candidate" || status === "needs_review";
+  }).length;
+
   return (
     <section style={panelStyle}>
-      <h2 style={{ marginTop: 0 }}>Candidates</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <h2 style={sectionTitleStyle}>Candidates</h2>
+        <StatusPill text={`${pendingCount} pending`} tone={pendingCount > 0 ? "warning" : "success"} />
+      </div>
+      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
+        Candidates are unfinalized learning signals. Review them here before they become trusted reusable guidance.
+      </p>
       <div style={{ display: "grid", gap: 12 }}>
-        {candidates.length === 0 ? <p style={{ color: "#56636b" }}>No candidate items available right now.</p> : null}
+        {candidates.length === 0 ? (
+          <article style={{ ...cardStyle, padding: 22 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <strong style={{ fontSize: 18 }}>No candidates right now</strong>
+              <p style={{ ...mutedStyle, margin: 0, lineHeight: 1.6 }}>
+                When new learning is captured, draft candidates will appear here with confidence, matching rule hints, and review actions.
+              </p>
+            </div>
+          </article>
+        ) : null}
         {candidates.map((candidate) => (
           <article
             key={String(candidate.path)}
             style={{
               ...cardStyle,
-              outline: selectedCandidatePath === String(candidate.path) ? "2px solid #b85c38" : "none",
+              outline: selectedCandidatePath === String(candidate.path) ? `2px solid ${palette.blue}` : "none",
               cursor: "pointer",
             }}
             onClick={() => onSelectCandidate(String(candidate.path))}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <strong>{String(candidate.title)}</strong>
-              <span>{String(candidate.status)}</span>
+              <strong>{displayText(candidate.title, "Untitled candidate")}</strong>
+              <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
             </div>
-            <p>{String(candidate.decision_reason ?? "")}</p>
+            <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(candidate.decision_reason, "Awaiting review or additional evidence.")}</p>
             <Chips
               items={[
                 String(candidate.adapter),
-                String(candidate.decision || "-"),
+                `decision ${displayText(candidate.decision, "pending")}`,
                 String(candidate.confidence || "-"),
                 candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
               ].filter(Boolean)}
             />
-            <pre style={{ whiteSpace: "pre-wrap", background: "rgba(23,33,38,0.04)", padding: 10, borderRadius: 10 }}>
+            <div style={{ marginTop: 10 }}>
+              <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
+            </div>
+            <pre style={{ whiteSpace: "pre-wrap", background: "rgba(17,17,17,0.035)", padding: 12, borderRadius: 16, border: `1px solid ${palette.line}` }}>
               {JSON.stringify(candidate.field_diffs ?? {}, null, 2)}
             </pre>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #0d6b5f", background: "#0d6b5f", color: "white", opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+              <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
                 Approve
               </button>
-              <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #d8cfbf", background: "white", opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+              <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
                 Needs Review
               </button>
-              <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #b85c38", background: "#b85c38", color: "white", opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+              <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
                 Reject
               </button>
             </div>
@@ -306,35 +430,44 @@ export function CandidateDetailPanel({
 }) {
   return (
     <section style={panelStyle}>
-      <h2 style={{ marginTop: 0 }}>Candidate Detail</h2>
+      <h2 style={sectionTitleStyle}>Candidate Detail</h2>
       {!candidate ? (
-        <p style={{ color: "#56636b" }}>Select a candidate to inspect matching rule, confidence, and field diffs.</p>
+        <article style={{ ...cardStyle, padding: 22 }}>
+          <strong style={{ fontSize: 18 }}>Pick a candidate to inspect</strong>
+          <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
+            The detail view shows the review rationale, matching rule hint, structured field diffs, and the exact decision actions you can take next.
+          </p>
+        </article>
       ) : (
-        <article style={cardStyle}>
+        <article style={{ ...cardStyle, position: "sticky", top: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-            <strong>{String(candidate.title)}</strong>
-            <span>{String(candidate.status)}</span>
+              <strong>{displayText(candidate.title, "Untitled candidate")}</strong>
+              <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
+            </div>
+          <p style={{ ...mutedStyle, lineHeight: 1.6 }}>{displayText(candidate.decision_reason, "Awaiting review or additional evidence.")}</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+            <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
+            {candidate.matched_rule ? <StatusPill text={`matched ${String(candidate.matched_rule)}`} /> : null}
           </div>
-          <p>{String(candidate.decision_reason ?? "")}</p>
           <Chips
             items={[
               String(candidate.adapter),
-              String(candidate.decision || "-"),
+              `decision ${displayText(candidate.decision, "pending")}`,
               String(candidate.confidence || "-"),
-              candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
-            ].filter(Boolean)}
+                candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
+              ].filter(Boolean)}
           />
-          <pre style={{ whiteSpace: "pre-wrap", background: "rgba(23,33,38,0.04)", padding: 10, borderRadius: 10 }}>
+          <pre style={{ whiteSpace: "pre-wrap", background: "rgba(17,17,17,0.035)", padding: 12, borderRadius: 16, border: `1px solid ${palette.line}` }}>
             {JSON.stringify(candidate.field_diffs ?? {}, null, 2)}
           </pre>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-            <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #0d6b5f", background: "#0d6b5f", color: "white", opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+            <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
               Approve
             </button>
-            <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #d8cfbf", background: "white", opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+            <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
               Needs Review
             </button>
-            <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ borderRadius: 999, padding: "8px 12px", border: "1px solid #b85c38", background: "#b85c38", color: "white", opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+            <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
               Reject
             </button>
           </div>
@@ -358,47 +491,49 @@ export function HistoryTable({
     return haystack.includes(filter.toLowerCase());
   });
   return (
-    <section style={{ ...panelStyle, marginTop: 18 }}>
+    <section style={{ ...panelStyle, marginTop: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-        <h2 style={{ marginTop: 0 }}>Recent History</h2>
+        <h2 style={sectionTitleStyle}>Recent History</h2>
         <input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter history..."
-          style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #d8cfbf", minWidth: 220 }}
+          style={{ padding: "12px 14px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, minWidth: 240, background: "rgba(255,255,255,0.88)", color: palette.text }}
         />
       </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: "10px 8px", color: "#56636b" }}>Timestamp</th>
-              <th style={{ textAlign: "left", padding: "10px 8px", color: "#56636b" }}>Scope</th>
-              <th style={{ textAlign: "left", padding: "10px 8px", color: "#56636b" }}>Action</th>
-              <th style={{ textAlign: "left", padding: "10px 8px", color: "#56636b" }}>Rule</th>
-              <th style={{ textAlign: "left", padding: "10px 8px", color: "#56636b" }}>Decision</th>
-              <th style={{ textAlign: "left", padding: "10px 8px", color: "#56636b" }}>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }} colSpan={6}>
-                  No history entries match the current filter.
-                </td>
-              </tr>
-            ) : filtered.map((item, index) => (
-              <tr key={`${String(item.ts)}-${index}`}>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }}>{String(item.ts ?? "")}</td>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }}>{String(item.scope ?? "")}</td>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }}>{String(item.action ?? "")}</td>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }}>{String(item.rule ?? "")}</td>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }}>{String(item.decision ?? "")}</td>
-                <td style={{ padding: "10px 8px", borderTop: "1px solid rgba(216,207,191,0.6)" }}>{String(item.reason ?? "")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, lineHeight: 1.6 }}>
+        History is shown as a lightweight activity timeline so recent promotions, revisions, and review decisions are easier to scan.
+      </p>
+      <div style={{ display: "grid", gap: 12 }}>
+        {filtered.length === 0 ? (
+          <article style={{ ...cardStyle, padding: 22 }}>
+            <strong style={{ fontSize: 18 }}>No matching history</strong>
+            <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
+              Try a broader filter or keep using the dashboard until new review and promotion events are recorded.
+            </p>
+          </article>
+        ) : (
+          filtered.map((item, index) => (
+            <article key={`${String(item.ts)}-${index}`} style={{ ...cardStyle, padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <strong style={{ fontSize: 16 }}>{displayText(item.rule, "Unnamed rule")}</strong>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <StatusPill text={displayText(item.action, "event")} tone="success" />
+                    <StatusPill text={displayText(item.scope, "project")} />
+                    {item.decision ? <StatusPill text={displayText(item.decision, "decision")} tone={decisionTone(displayText(item.decision, ""))} /> : null}
+                  </div>
+                </div>
+                <div style={{ ...mutedStyle, fontSize: 13, whiteSpace: "nowrap" }}>{displayText(item.ts, "-")}</div>
+              </div>
+              <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+                <div style={{ ...mutedStyle, lineHeight: 1.6 }}>
+                  {displayText(item.reason, "No additional reason recorded for this event.")}
+                </div>
+              </div>
+            </article>
+          ))
+        )}
       </div>
     </section>
   );

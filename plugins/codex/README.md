@@ -7,7 +7,7 @@ Codex-specific overlay assets live here.
 - install `.codex/hooks.json`
 - install Codex-facing skills
 - install learning references
-- create `.omx/wiki/session-log/`
+- keep Codex integration thin while canonical learning state lives under `.agent-learner/`
 
 ## Design goal
 

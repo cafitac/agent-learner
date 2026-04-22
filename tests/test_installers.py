@@ -14,12 +14,14 @@ def test_install_codex_adapter_creates_expected_assets(tmp_path: Path) -> None:
     assert (tmp_path / ".agent-learner" / "learning").exists()
     assert (tmp_path / ".agent-learner" / "events" / "codex").exists()
     assert (tmp_path / ".agent-learner" / "history").exists()
+    assert not (tmp_path / ".omx").exists()
     assert written
 
     hooks = json.loads((tmp_path / ".codex" / "hooks.json").read_text(encoding="utf-8"))
     assert "UserPromptSubmit" in hooks["hooks"]
     command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
     assert "codex_prompt_context.py" in command
+    assert ".omx/wiki" not in (tmp_path / ".codex" / "references" / "scripts" / "auto_session_learning.py").read_text(encoding="utf-8")
 
 
 def test_install_claude_adapter_creates_expected_assets(tmp_path: Path) -> None:

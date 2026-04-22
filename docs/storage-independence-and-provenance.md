@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted design note for the next `agent-learner` storage cleanup pass.
+Accepted design note. The storage-coupling portion is already reflected in the
+current implementation; the remaining work is mostly around stronger
+provenance, comparison, and revision history.
 
 ## Current state
 
@@ -12,10 +14,14 @@ Accepted design note for the next `agent-learner` storage cleanup pass.
 - `.agent-learner/candidates/`
 - `.agent-learner/state/`
 
-But the current Codex adapter still writes session-wrap artifacts into
-`.omx/wiki/session-log/`. That makes the adapter feel coupled to OMX even
-though OMX is supposed to be an optional runtime integration, not a required
-storage dependency.
+The earlier design problem was that Codex-side learning could write
+session-wrap artifacts into `.omx/wiki/session-log/`, which made the adapter
+feel coupled to OMX even though OMX is supposed to be an optional runtime
+integration, not a required storage dependency.
+
+That coupling has been removed from the current repo direction: canonical
+learning state now lives under `.agent-learner/`, and external wiki/KB systems
+are outside the canonical lifecycle.
 
 The current implementation also does **not** have a real "compare old learned
 rule vs new learned rule and update the existing rule with an explicit diff
@@ -39,10 +45,11 @@ What does not exist today:
 
 ## Problem
 
-Two problems are mixed together today:
+Two problems were historically mixed together:
 
 1. Storage coupling
-   `agent-learner` writes into `.omx/wiki/`, which makes the project feel OMX-dependent.
+   Learning artifacts could end up under `.omx/wiki/`, which made the project
+   feel OMX-dependent.
 
 2. Weak provenance
    Durable rules can carry `source` and `evidence`, but there is no canonical
@@ -76,6 +83,9 @@ Instead, we will keep:
 - promotion/update ledger entries
 - provenance metadata on rules
 
+See also: `docs/scope-learning-system.md` for the product-boundary decision
+that keeps wiki/KB systems outside the canonical learning scope.
+
 ## Design goals
 
 1. `agent-learner` must stay OSS-standalone without requiring OMX.
@@ -107,9 +117,6 @@ Proposed canonical tree:
   state/
     processed-events/
     current-model.txt
-  wiki/
-    index.md
-    decisions/
 ```
 
 Notes:
@@ -117,7 +124,7 @@ Notes:
 - `learning/` becomes the canonical lifecycle root.
 - Existing `.codex/references/learning/` can remain adapter-facing for a migration
   window, but the long-term source of truth should move to `.agent-learner/learning/`.
-- `wiki/` is optional but, if present, belongs under `.agent-learner/wiki/`, not `.omx/wiki/`.
+- Wiki/KB systems remain external integrations, not part of the canonical tree.
 
 ## Why session logs are not the primary artifact
 
@@ -540,9 +547,9 @@ OMX remains useful, but only as an integration target.
 
 Allowed optional integrations:
 
-- import signals from `.omx/wiki/`
-- render a mirror/export into `.omx/wiki/`
-- query OMX wiki during interactive review
+- link learning assets to external wiki/KB pages
+- let external tools export or summarize learning assets into their own wiki surfaces
+- query external wiki systems during human review without making them canonical storage
 
 Disallowed architectural assumption:
 
@@ -557,7 +564,7 @@ In short:
 
 ### Phase 1
 
-- stop writing canonical artifacts into `.omx/wiki/session-log/`
+- completed: stop writing canonical artifacts into `.omx/wiki/session-log/`
 - add `.agent-learner/history/promotions.jsonl`
 - add provenance fields to rule metadata
 
@@ -574,7 +581,7 @@ In short:
 
 ### Phase 4
 
-- make OMX wiki export an optional adapter/integration command
+- keep any wiki export outside the canonical learning lifecycle
 - remove any remaining assumption that `.omx/` exists
 
 ## Non-goals
@@ -586,13 +593,12 @@ In short:
 
 ## Recommended next implementation slice
 
-Smallest high-value slice:
+Smallest remaining high-value slice:
 
 1. Introduce `history/promotions.jsonl`.
 2. Add provenance fields to `LearningRule`.
-3. Stop Codex adapter writes to `.omx/wiki/session-log/`.
-4. Create `.agent-learner/wiki/` only if a human-facing summary surface is still wanted.
-5. Add a comparison primitive that decides:
+3. Keep wiki/KB integration external to the canonical learning tree.
+4. Add a comparison primitive that decides:
    - `new_rule`
    - `refresh_existing`
    - `revise_existing`

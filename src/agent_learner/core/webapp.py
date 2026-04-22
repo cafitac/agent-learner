@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .brain import apply_candidate_action, promote_rule_to_global
+from .global_learning import apply_candidate_action, promote_rule_to_global
 from .dashboard import build_dashboard_summary
 
 
@@ -65,7 +65,7 @@ def render_dashboard_app_html(project_root: Path) -> str:
   <div class="wrap">
     <section class="hero">
       <h1>agent-learner app</h1>
-      <p>Interactive local dashboard for local and global brain management.</p>
+      <p>Interactive local dashboard for project and global learning management.</p>
       <div class="meta">
         <span>project root: {project_root}</span>
       </div>
@@ -134,13 +134,13 @@ def render_dashboard_app_html(project_root: Path) -> str:
     }}
 
     function renderRuleCard(rule) {{
-      const promote = rule.brain_scope === 'project'
+      const promote = rule.learning_scope === 'project'
         ? `<button class="primary" data-promote="${{rule.name}}">Promote Global</button>`
         : '';
       return `<article class="rule">
         <div class="row"><strong>${{rule.name}}</strong><span>${{rule.status}}</span></div>
         <p>${{rule.summary}}</p>
-        ${{chips([rule.brain_scope, rule.scope, `uses ${{rule.use_count}}`])}}
+        ${{chips([rule.learning_scope, rule.scope, `uses ${{rule.use_count}}`])}}
         ${{rule.source_project ? `<div class="status">source project: ${{rule.source_project}}</div>` : ''}}
         ${{rule.related_rule ? `<div class="status">related: ${{rule.related_rule}}</div>` : ''}}
         <div class="actions">${{promote}}</div>

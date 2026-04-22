@@ -74,7 +74,7 @@ def retrieve_rules(lifecycle: LearningLifecycle, request: RetrievalRequest) -> l
                 path=path,
                 score=score,
                 token_cost=entry.token_estimate or lifecycle.estimate_rule_tokens(rule),
-                source_scope=entry.brain_scope,
+                source_scope=entry.learning_scope,
                 reasons=reasons,
             )
         )

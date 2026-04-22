@@ -16,7 +16,7 @@ from agent_learner.adapters.codex_context import (
     format_retrieval_results_as_text,
     render_codex_learning_context,
 )
-from agent_learner.core.brain import apply_candidate_action, promote_rule_to_global, sync_rules_to_global
+from agent_learner.core.global_learning import apply_candidate_action, promote_rule_to_global, sync_rules_to_global
 from agent_learner.core.context import detect_context, write_current_model
 from agent_learner.core.dashboard import build_dashboard_summary, write_dashboard_files
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text

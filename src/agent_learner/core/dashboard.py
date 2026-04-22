@@ -65,7 +65,7 @@ def build_dashboard_summary(project_root: Path) -> dict[str, object]:
         },
         "merged": {
             "rules": merged_rules,
-            "source_counts": dict(sorted(Counter(rule["brain_scope"] for rule in merged_rules).items())),
+            "source_counts": dict(sorted(Counter(rule["learning_scope"] for rule in merged_rules).items())),
         },
         "candidates": candidates,
         "recent_history": combined_history[:20],
@@ -77,15 +77,18 @@ def collect_rules(root: Path) -> list[dict[str, object]]:
     if not root.exists():
         return []
     lifecycle = LearningLifecycle(root)
+    global_root = global_learning_root().resolve()
+    root_resolved = root.resolve()
     records: list[dict[str, object]] = []
     for rule in lifecycle.list_rules():
+        display_scope = "global" if root_resolved == global_root else rule.learning_scope
         records.append(
             {
                 "name": rule.name,
                 "status": rule.status,
-                "summary": rule.summary or rule.rule,
-                "scope": rule.scope,
-                "brain_scope": rule.brain_scope,
+                "summary": (rule.summary or rule.rule or "").strip(),
+                "scope": (rule.scope or "").strip(),
+                "learning_scope": display_scope,
                 "source_project": rule.source_project,
                 "decision": rule.decision,
                 "related_rule": rule.related_rule,
@@ -100,11 +103,43 @@ def collect_rules(root: Path) -> list[dict[str, object]]:
 
 def merge_rules(local_rules: list[dict[str, object]], global_rules: list[dict[str, object]]) -> list[dict[str, object]]:
     merged: dict[str, dict[str, object]] = {}
-    for record in global_rules:
-        merged[str(record["name"])] = record
-    for record in local_rules:
-        merged[str(record["name"])] = record
+    for record in global_rules + local_rules:
+        name = str(record["name"])
+        existing = merged.get(name)
+        if existing is None or _rule_sort_key(record) > _rule_sort_key(existing):
+            merged[name] = record
     return sorted(merged.values(), key=lambda item: str(item["name"]))
+
+
+def _status_rank(status: object) -> int:
+    normalized = str(status).strip().strip('"').strip("'")
+    order = {
+        "approved": 4,
+        "needs_review": 3,
+        "draft": 2,
+        "deprecated": 1,
+    }
+    return order.get(normalized, 0)
+
+
+def _rule_completeness(record: dict[str, object]) -> int:
+    score = 0
+    if str(record.get("summary") or "").strip():
+        score += 2
+    if str(record.get("scope") or "").strip():
+        score += 1
+    if str(record.get("source_project") or "").strip():
+        score += 1
+    return score
+
+
+def _rule_sort_key(record: dict[str, object]) -> tuple[int, int, int, int]:
+    return (
+        _status_rank(record.get("status")),
+        _rule_completeness(record),
+        int(record.get("use_count") or 0),
+        1 if str(record.get("learning_scope") or "") == "project" else 0,
+    )
 
 
 def collect_candidates(project_root: Path) -> list[dict[str, object]]:
@@ -183,7 +218,7 @@ def render_dashboard_html(summary: dict[str, object]) -> str:
             f"<header><strong>{escape(str(item['name']))}</strong><span>{escape(str(item['status']))}</span></header>"
             f"<p>{escape(str(item['summary']))}</p>"
             f"<div class='chips'>"
-            f"<span>{escape(str(item['brain_scope']))}</span>"
+            f"<span>{escape(str(item['learning_scope']))}</span>"
             f"<span>{escape(str(item['scope']))}</span>"
             f"<span>uses {escape(str(item['use_count']))}</span>"
             "</div>"
@@ -358,7 +393,7 @@ def render_dashboard_html(summary: dict[str, object]) -> str:
   <div class="wrap">
     <section class="hero">
       <h1>agent-learner dashboard</h1>
-      <p>Global brain first, project-aware drill-down.</p>
+      <p>Global learning first, project-aware drill-down.</p>
       <div class="meta">
         <span>project: {escape(str(project['name'] or '-'))}</span>
         <span>model: {escape(str(project['current_model'] or '-'))}</span>
@@ -368,7 +403,7 @@ def render_dashboard_html(summary: dict[str, object]) -> str:
       </div>
       <div class="meta">
         <span>project root: {escape(str(project['root'] or '-'))}</span>
-        <span>global brain: {escape(str(summary['paths']['agent_learner_home']))}</span>
+        <span>global learning home: {escape(str(summary['paths']['agent_learner_home']))}</span>
       </div>
       <div class="metrics">{card_html}</div>
     </section>

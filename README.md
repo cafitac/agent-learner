@@ -4,9 +4,11 @@ Reusable learning control plane for coding-agent workflows.
 
 `agent-learner` helps you:
 - capture learned rules from agent work
-- keep project-local and global brain knowledge separate
+- keep project-local and global learning assets separate
 - review candidates and promote useful rules
 - use a dashboard UI for history, rules, and promotions
+
+It is a learning system, not a unified wiki layer.
 
 It is designed to layer onto existing agent environments rather than replace them.
 
@@ -61,15 +63,16 @@ Docker is optional convenience only. It is not the primary OSS install path.
 2. Run `doctor`
 3. Open the dashboard
 4. Review rules, candidates, and history
-5. Promote reusable knowledge to the global brain when appropriate
+5. Promote reusable learning assets to the global layer when appropriate
 
 ## Core concepts
 
-### Project brain vs global brain
+### Project-local vs global learning
 
 - project-local knowledge lives under `<project>/.agent-learner/`
 - reusable shared knowledge lives under `~/.agent-learner/global/`
 - retrieval is local-first, then global
+- external wiki/KB systems remain separate and are not part of the canonical learning lifecycle
 
 ### Indexed retrieval and pruning
 
@@ -123,11 +126,15 @@ agent-learner update
 - Architecture:
   - `docs/architecture.md`
   - `docs/adapter-convergence.md`
+  - `docs/scope-learning-system.md`
+  - `docs/storage-independence-and-provenance.md`
 
 - `docs/install.md`
 - `docs/quickstart.md`
 - `docs/architecture.md`
 - `docs/adapter-convergence.md`
+- `docs/scope-learning-system.md`
+- `docs/storage-independence-and-provenance.md`
 - `docs/distribution.md`
 - `docs/publish-smoke-checklist.md`
 - `docs/release-process.md`
@@ -136,7 +143,7 @@ agent-learner update
 ## Status
 
 Current implemented areas:
-- local/global brain split
+- local/global learning split
 - merged retrieval
 - candidate/rule/history lifecycle
 - dashboard UI

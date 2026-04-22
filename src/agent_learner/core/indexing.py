@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .models import BrainScope, LearningRule, RuleConfidence, RulePriority, RuleStatus, RuleModelDependency, utc_now_iso
+from .models import LearningScope, LearningRule, RuleConfidence, RulePriority, RuleStatus, RuleModelDependency, utc_now_iso
 
 if TYPE_CHECKING:
     from .lifecycle import LearningLifecycle
@@ -40,7 +40,7 @@ class RuleIndexEntry:
     promote_count: int
     updated_at: str | None
     last_used: str | None
-    brain_scope: BrainScope
+    learning_scope: LearningScope
     source_project: str | None
 
 
@@ -93,7 +93,7 @@ def rule_to_index_entry(learning_root: Path, path: Path, rule: LearningRule) -> 
         promote_count=rule.promote_count,
         updated_at=rule.updated_at,
         last_used=rule.last_used,
-        brain_scope=rule.brain_scope,
+        learning_scope=rule.learning_scope,
         source_project=rule.source_project,
     )
 

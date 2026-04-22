@@ -6,6 +6,21 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-04-22
+
+### Added
+- A redesigned dashboard information architecture with `Curated`, `Drafts`, `Local`, and `Global` rule views so reusable guidance is separated from unfinished learning noise.
+- A more modern React dashboard presentation with calmer hero/status cards, curated counters, richer candidate status pills, and card-based history timeline rendering.
+
+### Changed
+- Dashboard rule presentation now prefers higher-signal approved rules over empty drafts in merged views, hides low-signal draft placeholders from the curated view, and uses clearer empty-state copy throughout.
+- Dashboard actions now follow the currently selected project when promoting global rules or reviewing candidates, preventing cross-project action mismatches from the UI.
+- Internal naming is now consistently learning-first (`learning_scope`, `global_learning`, learning-focused docs/UI copy), and the old `brain_*` compatibility layer has been removed from the repo codepath.
+
+### Fixed
+- Frontmatter parsing now correctly decodes quoted scalar values such as `"approved"`, fixing malformed status display in dashboard summaries.
+- Global rules are rendered with global scope in dashboard summaries even when older stored metadata would otherwise make them appear project-scoped.
+
 ## [0.3.4] - 2026-04-22
 
 ### Added

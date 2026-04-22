@@ -265,7 +265,7 @@ class LearningLifecycle:
             evidence_excerpt=str(metadata.get("evidence_excerpt") or "") or None,
             last_validated_at=str(metadata.get("last_validated_at") or "") or None,
             last_validated_by=str(metadata.get("last_validated_by") or "") or None,
-            brain_scope=str(metadata.get("brain_scope") or "project"),
+            learning_scope=str(metadata.get("learning_scope") or "project"),
             source_project=str(metadata.get("source_project") or "") or None,
         )
         rule.ensure_defaults()
@@ -349,7 +349,7 @@ class LearningLifecycle:
             "evidence_excerpt": rule.evidence_excerpt or "",
             "last_validated_at": rule.last_validated_at or "",
             "last_validated_by": rule.last_validated_by or "",
-            "brain_scope": rule.brain_scope,
+            "learning_scope": rule.learning_scope,
             "source_project": rule.source_project or "",
             "scope": rule.scope,
             "tags": rule.tags,
@@ -471,6 +471,11 @@ class LearningLifecycle:
     def _decode_frontmatter_value(self, value: str) -> object:
         if value == "":
             return ""
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return value[1:-1]
         if value.startswith("["):
             try:
                 return json.loads(value)

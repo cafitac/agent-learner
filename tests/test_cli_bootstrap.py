@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
+from agent_learner.core.dashboard import merge_rules
 from agent_learner.core.fastapi_app import app_root_dir, frontend_dist_dir, frontend_src_dir, frontend_dist_is_valid
 from agent_learner.cli.main import main as cli_main
 from agent_learner.core.lifecycle import LearningLifecycle
@@ -74,6 +75,7 @@ def test_bootstrap_migrates_legacy_codex_learning_assets(monkeypatch, tmp_path: 
 
 
 def test_render_codex_context_command_outputs_hook_json(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     lifecycle.promote(
         LearningRule(
@@ -110,6 +112,7 @@ def test_render_codex_context_command_outputs_hook_json(monkeypatch, tmp_path: P
 
 
 def test_retrieve_command_outputs_ranked_rules(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     lifecycle.promote(
         LearningRule(
@@ -142,7 +145,8 @@ def test_retrieve_command_outputs_ranked_rules(monkeypatch, tmp_path: Path, caps
     assert "prompt-hook-tests" in output
 
 
-def test_qa_codex_smoke_command_runs_end_to_end(monkeypatch, capsys) -> None:
+def test_qa_codex_smoke_command_runs_end_to_end(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     monkeypatch.setattr(
         "sys.argv",
         ["agent-learner", "qa-codex-smoke"],
@@ -415,7 +419,7 @@ def test_overview_command_reports_dashboard_metrics(monkeypatch, tmp_path: Path,
 
 
 def test_dashboard_summary_and_generate_dashboard_commands(monkeypatch, tmp_path: Path, capsys) -> None:
-    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-brain"))
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     learning_root = tmp_path / ".agent-learner" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     lifecycle.promote(
@@ -462,7 +466,7 @@ def test_dashboard_summary_and_generate_dashboard_commands(monkeypatch, tmp_path
 
 
 def test_webapp_helpers_support_actions(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-brain"))
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     learning_root = tmp_path / ".agent-learner" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     lifecycle.promote(
@@ -477,7 +481,7 @@ def test_webapp_helpers_support_actions(monkeypatch, tmp_path: Path) -> None:
         )
     )
     result = apply_web_action(tmp_path, "promote-global", {"name": "local-rule"})
-    assert result["brain_scope"] == "global"
+    assert result["learning_scope"] == "global"
 
     html = render_dashboard_app_html(tmp_path)
     assert "/api/summary" in html
@@ -551,8 +555,8 @@ def test_format_doctor_text_includes_next_command(tmp_path: Path) -> None:
     assert "can_run_now=" in text
 
 
-def test_promote_global_command_copies_rule_to_global_brain(monkeypatch, tmp_path: Path, capsys) -> None:
-    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-brain"))
+def test_promote_global_command_copies_rule_to_global_learning(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     learning_root = tmp_path / ".agent-learner" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     lifecycle.promote(
@@ -573,12 +577,12 @@ def test_promote_global_command_copies_rule_to_global_brain(monkeypatch, tmp_pat
     )
     assert cli_main() == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["brain_scope"] == "global"
+    assert payload["learning_scope"] == "global"
     assert Path(payload["path"]).exists()
 
 
 def test_sync_global_promotes_eligible_rules(monkeypatch, tmp_path: Path, capsys) -> None:
-    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-brain"))
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     learning_root = tmp_path / ".agent-learner" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     rule = LearningRule(
@@ -613,6 +617,45 @@ def test_sync_global_promotes_eligible_rules(monkeypatch, tmp_path: Path, capsys
     payload = json.loads(capsys.readouterr().out)
     assert len(payload) == 1
     assert payload[0]["rule"] == "eligible-rule"
+
+
+def test_merge_rules_prefers_complete_approved_rule_over_empty_local_draft() -> None:
+    merged = merge_rules(
+        [
+            {
+                "name": "shared-rule",
+                "status": "draft",
+                "summary": "",
+                "scope": "",
+                "learning_scope": "project",
+                "source_project": None,
+                "decision": None,
+                "related_rule": None,
+                "supersedes": None,
+                "promote_count": 0,
+                "refresh_count": 0,
+                "use_count": 0,
+            }
+        ],
+        [
+            {
+                "name": "shared-rule",
+                "status": "approved",
+                "summary": "Reusable global rule.",
+                "scope": "migrations",
+                "learning_scope": "global",
+                "source_project": "codex-channels",
+                "decision": None,
+                "related_rule": None,
+                "supersedes": None,
+                "promote_count": 1,
+                "refresh_count": 0,
+                "use_count": 0,
+            }
+        ],
+    )
+    assert merged[0]["status"] == "approved"
+    assert merged[0]["summary"] == "Reusable global rule."
 
 
 def test_qa_claude_smoke_creates_event_and_candidate(monkeypatch, capsys) -> None:

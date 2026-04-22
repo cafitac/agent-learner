@@ -123,6 +123,8 @@ The Codex adapter wires two native hook paths:
 
 Canonical durable learning storage lives under `.agent-learner/learning/`.
 `.codex/` remains the adapter and hook surface, not the system of record.
+External wiki/KB systems are intentionally out of scope for normal adapter install
+and runtime behavior.
 If legacy rules already exist under `.codex/references/learning/`, install/bootstrap
 copies them into the canonical root and writes a migration marker so reads switch
 cleanly without hiding existing assets.
@@ -208,8 +210,8 @@ agent-learner serve-dashboard --project-root /path/to/consumer-repo --port 8766
 agent-learner serve-dashboard-fastapi --project-root /path/to/consumer-repo --port 8766
 agent-learner dashboard --project-root /path/to/consumer-repo --open
 
-FastAPI mode now exposes `/api/projects` and `/api/summary?project=<root>` so a frontend can switch between registered project brains from one global-oriented UI.
-FastAPI serves frontend assets from the `agent-learner` app's own `frontend/dist`, while `--project-root` selects which project brain the API reads by default.
+FastAPI mode now exposes `/api/projects` and `/api/summary?project=<root>` so a frontend can switch between registered project learning views from one global-oriented UI. Older `brain_*` compatibility paths are no longer supported.
+FastAPI serves frontend assets from the `agent-learner` app's own `frontend/dist`, while `--project-root` selects which project's learning assets the API reads by default.
 FastAPI is now the primary dashboard runtime; build the React frontend before using `serve-dashboard-fastapi`.
 The `dashboard` command now attempts to build the frontend automatically when the bundled dist is missing. Use `--no-build` if you want a strict fail-fast path instead.
 
