@@ -36,7 +36,7 @@ Wait for `.github/workflows/pypi-testpypi.yml` to pass.
 Then verify from a clean shell:
 
 ```bash
-uvx --from agent-learner --index-url https://test.pypi.org/simple agent-learner --help
+uvx --from agent-learner --index https://test.pypi.org/simple agent-learner --help
 ```
 
 ### 2. npm prerelease second
@@ -53,6 +53,9 @@ Then verify:
 ```bash
 npx @cafitac/agent-learner@next version
 npx @cafitac/agent-learner@next doctor
+AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple \
+AGENT_LEARNER_UVX_EXTRA_ARGS="--with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match" \
+  npx @cafitac/agent-learner@next core --help
 ```
 
 ## What to check

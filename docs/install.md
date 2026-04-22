@@ -216,7 +216,7 @@ npm install -g @cafitac/agent-learner
 agent-learner codex install --target /path/to/consumer-repo
 ```
 
-For local development in this repo, the wrapper runs `uv run agent-learner ...`. For published usage, it is designed to fall back to `uvx --from agent-learner agent-learner ...`.
+For local development in this repo, the wrapper runs `uv run agent-learner ...`. For published usage, it is designed to fall back to `uvx --from "agent-learner[web]" agent-learner ...`.
 
 Wrapper UX helpers:
 

@@ -18,7 +18,7 @@ This repo has three release lanes:
 2. Bump Python and npm versions together
 3. Push `vX.Y.Z` for a GitHub release with attached artifacts
 4. Push `py-vX.Y.Z` to publish the Python core
-5. Verify `uvx --from agent-learner agent-learner --help`
+5. Verify `uvx --from "agent-learner[web]" agent-learner --help`
 6. Push `npm-vX.Y.Z` to publish the npm wrapper
 
 ## Immediately after publish
@@ -36,7 +36,7 @@ Use `docs/publish-smoke-checklist.md` for the exact matrix and optional paths.
 The npm wrapper's published mode delegates into:
 
 ```bash
-uvx --from agent-learner agent-learner ...
+uvx --from "agent-learner[web]" agent-learner ...
 ```
 
 So the Python core must be published before the npm wrapper is broadly usable outside a repo checkout.

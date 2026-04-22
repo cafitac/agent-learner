@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.0rc3] - 2026-04-22
+
+### Changed
+- npm prerelease wrapper rehearsals now support additional `uvx` arguments so TestPyPI can be used for `agent-learner` while dependency constraints still resolve from PyPI.
+- Release smoke checks now run `doctor` through `uv run --extra web` so FastAPI dashboard readiness is actually exercised.
+
 ## [0.3.0rc2] - 2026-04-22
 
 ### Changed

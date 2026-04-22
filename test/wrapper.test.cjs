@@ -74,15 +74,22 @@ test('buildExecutionPlan falls back to uvx without local core', () => {
 test('buildExecutionPlan honors uvx index override', () => {
   const fakeRoot = path.join(__dirname, 'fixtures-no-pyproject');
   const previous = process.env.AGENT_LEARNER_UVX_INDEX_URL;
+  const previousExtraArgs = process.env.AGENT_LEARNER_UVX_EXTRA_ARGS;
   process.env.AGENT_LEARNER_UVX_INDEX_URL = 'https://test.pypi.org/simple';
+  process.env.AGENT_LEARNER_UVX_EXTRA_ARGS = '--with fastapi<1 --index-strategy unsafe-best-match';
   try {
     const plan = buildExecutionPlan({ type: 'dashboard', projectRoot: '/tmp/repo', build: false, noBuild: false, open: false, port: null }, fakeRoot, '/tmp/repo');
-    assert.deepEqual(plan.args.slice(0, 4), ['--from', 'agent-learner[web]', '--index-url', 'https://test.pypi.org/simple']);
+    assert.deepEqual(plan.args.slice(0, 8), ['--from', 'agent-learner[web]', '--with', 'fastapi<1', '--index-strategy', 'unsafe-best-match', '--index', 'https://test.pypi.org/simple']);
   } finally {
     if (previous === undefined) {
       delete process.env.AGENT_LEARNER_UVX_INDEX_URL;
     } else {
       process.env.AGENT_LEARNER_UVX_INDEX_URL = previous;
+    }
+    if (previousExtraArgs === undefined) {
+      delete process.env.AGENT_LEARNER_UVX_EXTRA_ARGS;
+    } else {
+      process.env.AGENT_LEARNER_UVX_EXTRA_ARGS = previousExtraArgs;
     }
   }
 });

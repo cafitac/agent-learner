@@ -27,7 +27,7 @@ Publish in this order:
 
 1. **PyPI first**
    - publish `agent-learner` Python package
-   - verify `uvx --from agent-learner agent-learner --help`
+   - verify `uvx --from "agent-learner[web]" agent-learner --help`
 2. **npm second**
    - publish `@cafitac/agent-learner`
    - wrapper published-mode depends on the Python package already being resolvable by `uvx`
@@ -35,7 +35,7 @@ Publish in this order:
 If npm is published before PyPI, wrapper commands outside the repo checkout will fail because published-mode shells into:
 
 ```bash
-uvx --from agent-learner agent-learner ...
+uvx --from "agent-learner[web]" agent-learner ...
 ```
 
 ## Local development
@@ -87,8 +87,10 @@ After publishing:
 
 Use `docs/publish-smoke-checklist.md` as the exact command matrix.
 For npm prerelease checks before the Python core reaches production PyPI, set
-`AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple` so the wrapper can
-resolve the TestPyPI Python core.
+`AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple` and, when exercising
+the web extra, `AGENT_LEARNER_UVX_EXTRA_ARGS="--with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match"`.
+This keeps the Python core rehearsal on TestPyPI while avoiding placeholder
+TestPyPI dependency packages.
 
 
 ## Version coordination
@@ -101,7 +103,7 @@ Recommended rule:
 - publish `npm-vX.Y.Z` second for the npm wrapper
 
 Why:
-- published wrapper mode shells into `uvx --from agent-learner agent-learner ...`
+- published wrapper mode shells into `uvx --from "agent-learner[web]" agent-learner ...`
 - matching versions make support/debugging simpler while the wrapper is still thin
 
 If versions intentionally diverge later, document the compatibility matrix here.

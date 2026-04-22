@@ -17,12 +17,16 @@ python scripts/release/published_runtime_smoke.py --project-root /path/to/consum
 ```
 
 For npm prerelease checks that need to resolve the Python core from TestPyPI,
-set:
+use the TestPyPI index only as an additional package source and constrain the
+web dependencies away from placeholder TestPyPI packages:
 
 ```bash
 AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple \
-  npx @cafitac/agent-learner@next dashboard --project-root /path/to/consumer-repo
+AGENT_LEARNER_UVX_EXTRA_ARGS="--with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match" \
+  npx @cafitac/agent-learner@next core --help
 ```
+
+Use the full `dashboard` smoke after the Python package reaches production PyPI.
 
 The goal is simple:
 
