@@ -3,9 +3,13 @@
 __pycache__/
 *.pyc
 dist/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
 build/
 *.egg-info/
 .omx/
 
 node_modules/
+frontend/node_modules/
+.idea/
 *.tgz

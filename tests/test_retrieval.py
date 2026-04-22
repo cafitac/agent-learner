@@ -5,6 +5,7 @@ from agent_learner.adapters.codex_context import render_codex_learning_context
 from agent_learner.core.lifecycle import LearningLifecycle
 from agent_learner.core.models import LearningRule
 from agent_learner.core.retrieval import RetrievalRequest, retrieve_rules
+from agent_learner.core.storage import ensure_global_learning_root
 
 
 def promote_rule(lifecycle: LearningLifecycle, **overrides: object) -> LearningRule:
@@ -102,7 +103,7 @@ def test_retrieve_respects_token_budget_and_status_weight(tmp_path: Path) -> Non
 
 
 def test_render_codex_learning_context_only_includes_selected_rules(tmp_path: Path) -> None:
-    lifecycle = LearningLifecycle(tmp_path / ".codex" / "references" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     promote_rule(
         lifecycle,
         name="behavior-tests",
@@ -122,7 +123,7 @@ def test_render_codex_learning_context_only_includes_selected_rules(tmp_path: Pa
     )
 
     context = render_codex_learning_context(
-        tmp_path / ".codex" / "references" / "learning",
+        tmp_path / ".agent-learner" / "learning",
         "fix behavior bug and keep tests green",
         task_type="bugfix",
         token_budget=120,
@@ -135,7 +136,7 @@ def test_render_codex_learning_context_only_includes_selected_rules(tmp_path: Pa
 def test_retrieve_respects_context_and_model_gating(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
     write_current_model(tmp_path, "claude-opus-4-7")
-    lifecycle = LearningLifecycle(tmp_path / ".codex" / "references" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     promote_rule(
         lifecycle,
         name="python-approved",
@@ -160,3 +161,36 @@ def test_retrieve_respects_context_and_model_gating(tmp_path: Path) -> None:
         RetrievalRequest(query="workflow", context=detect_context(tmp_path)),
     )
     assert [result.rule.name for result in results] == ["python-approved"]
+
+
+def test_render_codex_learning_context_merges_global_brain_rules(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-brain"))
+    local_lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    promote_rule(
+        local_lifecycle,
+        name="local-rule",
+        rule="Update service tests locally.",
+        summary="Local project rule.",
+        scope="services",
+        task_types=["bugfix"],
+    )
+    global_lifecycle = LearningLifecycle(ensure_global_learning_root())
+    promote_rule(
+        global_lifecycle,
+        name="global-rule",
+        rule="Keep migrations reversible across projects.",
+        summary="Global reusable rule.",
+        scope="migrations",
+        task_types=["refactor"],
+        projects=["*"],
+        brain_scope="global",
+    )
+
+    context = render_codex_learning_context(
+        tmp_path / ".agent-learner" / "learning",
+        "refactor migrations safely",
+        task_type="refactor",
+        token_budget=200,
+    )
+    assert context is not None
+    assert "global-rule" in context

@@ -8,6 +8,7 @@ from pathlib import Path
 from .context import ContextSnapshot
 from .lifecycle import LearningLifecycle
 from .models import LearningRule, RuleStatus
+from .storage import effective_learning_roots
 
 WORD_RE = re.compile(r"[a-z0-9_./-]+")
 APPROVED_STATUSES: list[RuleStatus] = ["approved"]
@@ -20,6 +21,7 @@ class RetrievedRule:
     path: Path
     score: float
     token_cost: int
+    source_scope: str = "project"
     reasons: list[str] = field(default_factory=list)
 
 
@@ -60,11 +62,33 @@ def retrieve_rules(lifecycle: LearningLifecycle, request: RetrievalRequest) -> l
                 path=path,
                 score=score,
                 token_cost=rule.token_estimate or lifecycle.estimate_rule_tokens(rule),
+                source_scope=rule.brain_scope,
                 reasons=reasons,
             )
         )
     scored.sort(key=lambda item: (-item.score, item.rule.name))
     limited = scored[: max(request.limit * 3, request.limit)]
+    return apply_budget(limited, request.limit, request.token_budget)
+
+
+def retrieve_rules_for_project(project_root: Path, request: RetrievalRequest) -> list[RetrievedRule]:
+    roots = effective_learning_roots(project_root)
+    combined: dict[str, RetrievedRule] = {}
+    for root in roots:
+        lifecycle = LearningLifecycle(root)
+        results = retrieve_rules(lifecycle, request)
+        for result in results:
+            existing = combined.get(result.rule.name)
+            if existing is None:
+                combined[result.rule.name] = result
+                continue
+            if result.score > existing.score:
+                combined[result.rule.name] = result
+                continue
+            if result.score == existing.score and result.source_scope == "project" and existing.source_scope != "project":
+                combined[result.rule.name] = result
+    ranked = sorted(combined.values(), key=lambda item: (-item.score, 0 if item.source_scope == "project" else 1, item.rule.name))
+    limited = ranked[: max(request.limit * 3, request.limit)]
     return apply_budget(limited, request.limit, request.token_budget)
 
 

@@ -91,3 +91,22 @@ def test_touch_rule_updates_use_tracking(tmp_path: Path) -> None:
     touched = lifecycle.load_rule("touch-me")
     assert touched.use_count == 1
     assert touched.last_used is not None
+
+
+def test_refresh_updates_provenance_fields(tmp_path: Path) -> None:
+    lifecycle = LearningLifecycle(tmp_path)
+    lifecycle.promote(make_rule("refresh-me"))
+    lifecycle.refresh(
+        "refresh-me",
+        source_event="codex/stop-1.json",
+        source_adapter="codex",
+        derived_from_candidate="candidate-refresh-me.md",
+        decision_reason="same meaning and fresher evidence",
+        evidence_excerpt="Update or add tests whenever behavior changes.",
+    )
+    refreshed = lifecycle.load_rule("refresh-me")
+    assert refreshed.refresh_count == 1
+    assert refreshed.decision == "refresh_existing"
+    assert refreshed.source_event == "codex/stop-1.json"
+    assert refreshed.source_adapter == "codex"
+    assert refreshed.derived_from_candidate == "candidate-refresh-me.md"

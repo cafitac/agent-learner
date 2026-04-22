@@ -5,6 +5,9 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from .lifecycle import LearningLifecycle
+from .models import ComparisonDecisionType, LearningRule, utc_now_iso
+from .storage import append_jsonl, promotions_history_path, resolve_learning_root
 from .events import LearningEvent, event_storage_dir
 
 RULE_HINT_RE = re.compile(
@@ -21,6 +24,10 @@ TEXT_VALUE_KEYS = {
     "instruction",
     "content",
 }
+COMPARISON_STATUSES = ["approved", "needs_review", "draft"]
+GENERIC_REJECTION_TERMS = {"careful", "quality", "best", "good", "clean", "properly", "appropriate"}
+NEGATION_TERMS = {"never", "not", "avoid", "except", "unless", "dont", "no"}
+STOPWORDS = {"a", "an", "and", "be", "for", "the", "to", "with", "when", "whenever", "always"}
 
 
 @dataclass(slots=True)
@@ -34,6 +41,12 @@ class LearningCandidate:
     scope: str
     evidence_excerpt: str
     transcript_path: str | None = None
+    matched_rule: str | None = None
+    decision: ComparisonDecisionType | None = None
+    decision_reason: str | None = None
+    review_required: bool = False
+    confidence: str = "low"
+    field_diffs: dict[str, str] | None = None
 
 
 @dataclass(slots=True)
@@ -41,7 +54,30 @@ class ProcessedEventResult:
     event_path: str
     status: str
     candidate_path: str | None = None
+    rule_path: str | None = None
     reason: str | None = None
+    decision: ComparisonDecisionType | None = None
+    matched_rule: str | None = None
+    ledger_path: str | None = None
+    review_required: bool = False
+
+
+@dataclass(slots=True)
+class CandidateComparison:
+    decision: ComparisonDecisionType
+    matched_rule: str | None
+    confidence: str
+    reason: str
+    review_required: bool
+    field_diffs: dict[str, str]
+    similarity: float = 0.0
+
+
+@dataclass(slots=True)
+class CandidateRecord:
+    path: Path
+    candidate: LearningCandidate
+    status: str = "draft_candidate"
 
 
 def candidate_storage_dir(project_root: Path, adapter: str) -> Path:
@@ -50,6 +86,80 @@ def candidate_storage_dir(project_root: Path, adapter: str) -> Path:
 
 def processed_marker_dir(project_root: Path, processor: str, adapter: str) -> Path:
     return project_root / ".agent-learner" / "state" / "processed-events" / processor / adapter
+
+
+def list_candidate_paths(project_root: Path, adapter: str | None = None) -> list[Path]:
+    if adapter:
+        return sorted(candidate_storage_dir(project_root, adapter).glob("candidate-*.md"))
+    roots = [path for path in (project_root / ".agent-learner" / "candidates").glob("*") if path.is_dir()]
+    paths: list[Path] = []
+    for root in roots:
+        paths.extend(sorted(root.glob("candidate-*.md")))
+    return sorted(paths)
+
+
+def load_candidate_record(path: Path) -> CandidateRecord:
+    text = path.read_text(encoding="utf-8")
+    frontmatter, body = split_frontmatter(text)
+    metadata = parse_frontmatter(frontmatter)
+    sections = parse_markdown_sections(body)
+    candidate = LearningCandidate(
+        adapter=str(metadata.get("adapter") or path.parent.name),
+        source_event_path=str(metadata.get("source_event_path") or ""),
+        captured_at=str(metadata.get("captured_at") or ""),
+        title=path.stem.replace("candidate-", "").replace("-", " "),
+        summary=str(sections.get("Summary") or ""),
+        suggested_rule=str(sections.get("Suggested rule") or ""),
+        scope=str(sections.get("Scope") or ""),
+        evidence_excerpt=str(sections.get("Evidence") or ""),
+        transcript_path=str(metadata.get("transcript_path") or "") or None,
+        matched_rule=str(metadata.get("matched_rule") or "") or None,
+        decision=str(metadata.get("decision") or "") or None,
+        decision_reason=str(metadata.get("decision_reason") or "") or None,
+        review_required=str(metadata.get("review_required") or "").lower() == "true",
+        confidence=str(metadata.get("confidence") or "low"),
+        field_diffs=dict(metadata.get("field_diffs") or {}),
+    )
+    title = str(sections.get("title") or "").strip()
+    if title:
+        candidate.title = title
+    return CandidateRecord(path=path, candidate=candidate, status=str(metadata.get("status") or "draft_candidate"))
+
+
+def save_candidate_record(record: CandidateRecord) -> Path:
+    candidate = record.candidate
+    body = [
+        "---",
+        f"adapter: {candidate.adapter}",
+        f"captured_at: {candidate.captured_at}",
+        f"source_event_path: {candidate.source_event_path}",
+        f"transcript_path: {candidate.transcript_path or ''}",
+        f"status: {record.status}",
+        f"decision: {candidate.decision or ''}",
+        f"decision_reason: {json.dumps(candidate.decision_reason or '', ensure_ascii=False)}",
+        f"matched_rule: {candidate.matched_rule or ''}",
+        f"review_required: {'true' if candidate.review_required else 'false'}",
+        f"confidence: {candidate.confidence}",
+        f"field_diffs: {json.dumps(candidate.field_diffs or {}, ensure_ascii=False)}",
+        "---",
+        "",
+        f"# {candidate.title}",
+        "",
+        "## Suggested rule",
+        candidate.suggested_rule,
+        "",
+        "## Summary",
+        candidate.summary,
+        "",
+        "## Scope",
+        candidate.scope,
+        "",
+        "## Evidence",
+        candidate.evidence_excerpt,
+        "",
+    ]
+    record.path.write_text("\n".join(body), encoding="utf-8")
+    return record.path
 
 
 def list_event_paths(project_root: Path, adapter: str | None = None) -> list[Path]:
@@ -87,6 +197,7 @@ def mark_processed(project_root: Path, event_path: Path, processor: str = "extra
 
 def process_unprocessed_events(project_root: Path, adapter: str | None = None, limit: int | None = None) -> list[ProcessedEventResult]:
     results: list[ProcessedEventResult] = []
+    lifecycle = LearningLifecycle(resolve_learning_root(project_root))
     for event_path in list_event_paths(project_root, adapter=adapter):
         if limit is not None and len(results) >= limit:
             break
@@ -95,9 +206,68 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
         event = load_learning_event(event_path)
         candidate = extract_candidate_from_event(project_root, event_path, event)
         candidate_path: Path | None = None
+        rule_path: Path | None = None
+        ledger_path: Path | None = None
+        comparison: CandidateComparison | None = None
         if candidate is not None:
+            comparison = compare_candidate_to_existing_rule(lifecycle, candidate)
+            candidate.decision = comparison.decision
+            candidate.matched_rule = comparison.matched_rule
+            candidate.decision_reason = comparison.reason
+            candidate.review_required = comparison.review_required
+            candidate.confidence = comparison.confidence
+            candidate.field_diffs = comparison.field_diffs
             candidate_path = write_candidate(project_root, candidate)
-            status = "candidate_written"
+            ledger_path = append_candidate_decision_entry(project_root, candidate, comparison)
+            if comparison.decision == "refresh_existing" and comparison.matched_rule:
+                refreshed_path = lifecycle.refresh(
+                    comparison.matched_rule,
+                    source_event=candidate.source_event_path,
+                    source_adapter=candidate.adapter,
+                    derived_from_candidate=f"candidate-{slugify(candidate.title)}.md",
+                    decision_reason=comparison.reason,
+                    evidence_excerpt=candidate.evidence_excerpt,
+                )
+                rule_path = refreshed_path
+                status = "rule_refreshed"
+                comparison.matched_rule = refreshed_path.stem
+                comparison.review_required = False
+                candidate.matched_rule = refreshed_path.stem
+                update_candidate_status(candidate_path, "auto_applied", matched_rule=refreshed_path.stem)
+            elif comparison.decision == "reject_candidate":
+                status = "candidate_rejected"
+                update_candidate_status(candidate_path, "rejected_candidate")
+            elif comparison.decision == "revise_existing" and comparison.matched_rule:
+                revised_path = lifecycle.revise(
+                    comparison.matched_rule,
+                    rule_text=candidate.suggested_rule,
+                    summary=candidate.summary,
+                    scope=candidate.scope,
+                    why=comparison.reason,
+                    source_event=candidate.source_event_path,
+                    source_adapter=candidate.adapter,
+                    derived_from_candidate=f"candidate-{slugify(candidate.title)}.md",
+                    decision_reason=comparison.reason,
+                    evidence_excerpt=candidate.evidence_excerpt,
+                )
+                rule_path = revised_path
+                status = "rule_revised"
+                comparison.matched_rule = revised_path.stem
+                candidate.review_required = False
+                comparison.review_required = False
+                candidate.matched_rule = revised_path.stem
+                update_candidate_status(candidate_path, "auto_applied", matched_rule=revised_path.stem)
+            elif comparison.decision in {"new_rule", "fork_rule"}:
+                promoted_path = auto_promote_candidate_as_rule(project_root, lifecycle, candidate, comparison, candidate_path)
+                rule_path = promoted_path
+                status = "rule_promoted" if comparison.decision == "new_rule" else "rule_forked"
+                comparison.matched_rule = promoted_path.stem
+                candidate.review_required = False
+                comparison.review_required = False
+                candidate.matched_rule = promoted_path.stem
+                update_candidate_status(candidate_path, "auto_applied", matched_rule=promoted_path.stem)
+            else:
+                status = "candidate_written"
         else:
             status = "no_candidate"
         mark_processed(project_root, event_path)
@@ -106,7 +276,12 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
                 event_path=str(event_path),
                 status=status,
                 candidate_path=str(candidate_path) if candidate_path else None,
+                rule_path=str(rule_path) if rule_path else None,
                 reason=None if candidate is not None else "no durable rule-like signal found",
+                decision=comparison.decision if comparison else None,
+                matched_rule=comparison.matched_rule if comparison else None,
+                ledger_path=str(ledger_path) if ledger_path else None,
+                review_required=comparison.review_required if comparison else False,
             )
         )
     return results
@@ -140,32 +315,407 @@ def write_candidate(project_root: Path, candidate: LearningCandidate) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     slug = slugify(candidate.title)
     target = target_dir / f"candidate-{slug}.md"
-    body = [
-        "---",
-        f"adapter: {candidate.adapter}",
-        f"captured_at: {candidate.captured_at}",
-        f"source_event_path: {candidate.source_event_path}",
-        f"transcript_path: {candidate.transcript_path or ''}",
-        "status: draft_candidate",
-        "---",
-        "",
-        f"# {candidate.title}",
-        "",
-        "## Suggested rule",
-        candidate.suggested_rule,
-        "",
-        "## Summary",
-        candidate.summary,
-        "",
-        "## Scope",
-        candidate.scope,
-        "",
-        "## Evidence",
-        candidate.evidence_excerpt,
-        "",
-    ]
-    target.write_text("\n".join(body), encoding="utf-8")
-    return target
+    return save_candidate_record(CandidateRecord(path=target, candidate=candidate))
+
+
+def update_candidate_status(path: Path | None, status: str, *, matched_rule: str | None = None) -> Path | None:
+    if path is None or not path.exists():
+        return path
+    record = load_candidate_record(path)
+    record.status = status
+    if matched_rule:
+        record.candidate.matched_rule = matched_rule
+    return save_candidate_record(record)
+
+
+def compare_candidate_to_existing_rule(lifecycle: LearningLifecycle, candidate: LearningCandidate) -> CandidateComparison:
+    if should_reject_candidate(candidate):
+        return CandidateComparison(
+            decision="reject_candidate",
+            matched_rule=None,
+            confidence="high",
+            reason="candidate signal is too generic to become a durable rule",
+            review_required=False,
+            field_diffs={},
+            similarity=0.0,
+        )
+
+    best_rule: LearningRule | None = None
+    best_similarity = 0.0
+    best_exact = False
+    candidate_slug = slugify(candidate.title)
+    for path in lifecycle.list_rule_paths(statuses=COMPARISON_STATUSES):
+        rule = lifecycle.load_rule(path)
+        exact = slugify(rule.name) == candidate_slug
+        similarity = rule_similarity(candidate, rule)
+        if exact and not best_exact:
+            best_rule = rule
+            best_similarity = similarity
+            best_exact = True
+            continue
+        if exact == best_exact and similarity > best_similarity:
+            best_rule = rule
+            best_similarity = similarity
+
+    if best_rule is None:
+        return CandidateComparison(
+            decision="new_rule",
+            matched_rule=None,
+            confidence="medium",
+            reason="no existing rule had a meaningful semantic match",
+            review_required=True,
+            field_diffs={},
+            similarity=0.0,
+        )
+
+    diffs = describe_field_diffs(candidate, best_rule)
+    conflict = has_negation_conflict(candidate.suggested_rule, best_rule.rule)
+    if (best_exact or best_similarity >= 0.82) and not conflict and diffs["rule"] == "unchanged" and diffs["scope"] == "unchanged":
+        return CandidateComparison(
+            decision="refresh_existing",
+            matched_rule=best_rule.name,
+            confidence="high",
+            reason="same imperative meaning with unchanged scope and fresher evidence",
+            review_required=False,
+            field_diffs=diffs,
+            similarity=best_similarity,
+        )
+    if (best_exact or best_similarity >= 0.55) and not conflict:
+        return CandidateComparison(
+            decision="revise_existing",
+            matched_rule=best_rule.name,
+            confidence="medium",
+            reason="same conceptual rule but durable wording should change materially",
+            review_required=True,
+            field_diffs=diffs,
+            similarity=best_similarity,
+        )
+    if best_similarity >= 0.45:
+        return CandidateComparison(
+            decision="fork_rule",
+            matched_rule=best_rule.name,
+            confidence="medium",
+            reason="related topic overlaps with an existing rule but safe merge is not possible",
+            review_required=True,
+            field_diffs=diffs,
+            similarity=best_similarity,
+        )
+    return CandidateComparison(
+        decision="new_rule",
+        matched_rule=None,
+        confidence="medium",
+        reason="existing rules are too distant to reuse safely",
+        review_required=True,
+        field_diffs={},
+        similarity=best_similarity,
+    )
+
+
+def append_candidate_decision_entry(project_root: Path, candidate: LearningCandidate, comparison: CandidateComparison) -> Path:
+    payload = {
+        "ts": utc_now_iso(),
+        "action": decision_to_history_action(comparison.decision),
+        "rule": comparison.matched_rule or slugify(candidate.title),
+        "source_adapter": candidate.adapter,
+        "source_event": candidate.source_event_path,
+        "derived_from_candidate": f"candidate-{slugify(candidate.title)}.md",
+        "reason": comparison.reason,
+        "decision": comparison.decision,
+        "confidence": comparison.confidence,
+        "review_required": comparison.review_required,
+        "matched_rule": comparison.matched_rule,
+        "similarity": round(comparison.similarity, 3),
+        "field_diffs": comparison.field_diffs,
+        "field_diffs_summary": summarize_field_diffs(comparison.field_diffs),
+    }
+    return append_jsonl(promotions_history_path(project_root), payload)
+
+
+def append_candidate_review_entry(
+    project_root: Path,
+    record: CandidateRecord,
+    action: str,
+    *,
+    rule_name: str | None = None,
+    reason: str | None = None,
+) -> Path:
+    payload = {
+        "ts": utc_now_iso(),
+        "action": action,
+        "rule": rule_name or record.candidate.matched_rule or slugify(record.candidate.title),
+        "source_adapter": record.candidate.adapter,
+        "source_event": record.candidate.source_event_path,
+        "derived_from_candidate": record.path.name,
+        "reason": reason or record.candidate.decision_reason or "",
+        "decision": record.candidate.decision,
+        "review_required": record.candidate.review_required,
+        "matched_rule": record.candidate.matched_rule,
+        "field_diffs": record.candidate.field_diffs or {},
+        "field_diffs_summary": summarize_field_diffs(record.candidate.field_diffs or {}),
+    }
+    return append_jsonl(promotions_history_path(project_root), payload)
+
+
+def auto_promote_candidate_as_rule(
+    project_root: Path,
+    lifecycle: LearningLifecycle,
+    candidate: LearningCandidate,
+    comparison: CandidateComparison,
+    candidate_path: Path | None,
+) -> Path:
+    rule_name = auto_rule_name(lifecycle, candidate, comparison)
+    rule = LearningRule(
+        name=rule_name,
+        rule=candidate.suggested_rule,
+        why=comparison.reason,
+        scope=candidate.scope,
+        good_pattern=candidate.summary or candidate.suggested_rule,
+        avoid_pattern="",
+        summary=candidate.summary or candidate.suggested_rule,
+    )
+    rule.source_event = candidate.source_event_path
+    rule.source_adapter = candidate.adapter
+    rule.derived_from_candidate = f"candidate-{slugify(candidate.title)}.md"
+    rule.decision = comparison.decision
+    rule.decision_reason = comparison.reason
+    rule.evidence_excerpt = candidate.evidence_excerpt
+    rule.evidence = candidate.evidence_excerpt
+    if comparison.decision == "fork_rule" and comparison.matched_rule:
+        rule.related_rule = comparison.matched_rule
+    saved = lifecycle.promote(rule)
+    record = CandidateRecord(path=candidate_path or Path(f"candidate-{slugify(candidate.title)}.md"), candidate=candidate, status="auto_applied")
+    append_candidate_review_entry(project_root, record, "promote", rule_name=saved.stem, reason=comparison.reason)
+    return saved
+
+
+def auto_rule_name(lifecycle: LearningLifecycle, candidate: LearningCandidate, comparison: CandidateComparison) -> str:
+    base = slugify(candidate.title)
+    if comparison.decision == "fork_rule" and comparison.matched_rule:
+        base = f"{comparison.matched_rule}-fork-{candidate.adapter}"
+    candidate_name = base
+    counter = 2
+    while True:
+        try:
+            lifecycle.resolve_rule_path(candidate_name)
+        except FileNotFoundError:
+            return candidate_name
+        candidate_name = f"{base}-{counter}"
+        counter += 1
+
+
+def summarize_field_diffs(field_diffs: dict[str, str]) -> str:
+    if not field_diffs:
+        return "none"
+    parts = [f"{key}:{value}" for key, value in sorted(field_diffs.items()) if value != "unchanged"]
+    return ", ".join(parts) if parts else "unchanged"
+
+
+def approve_candidate(project_root: Path, candidate_ref: str | Path) -> tuple[CandidateRecord, Path]:
+    record = resolve_candidate_record(project_root, candidate_ref)
+    lifecycle = LearningLifecycle(resolve_learning_root(project_root))
+    if record.status in {"auto_applied", "approved_candidate"} and record.candidate.matched_rule:
+        resolved = lifecycle.resolve_rule_path(record.candidate.matched_rule)
+        return record, resolved
+    rule_name = record.candidate.matched_rule or slugify(record.candidate.title)
+    existing_path = None
+    try:
+        existing_path = lifecycle.resolve_rule_path(rule_name)
+    except FileNotFoundError:
+        existing_path = None
+
+    if record.candidate.decision == "refresh_existing" and existing_path is not None:
+        saved = lifecycle.refresh(
+            existing_path,
+            source_event=record.candidate.source_event_path,
+            source_adapter=record.candidate.adapter,
+            derived_from_candidate=record.path.name,
+            decision_reason=record.candidate.decision_reason,
+            evidence_excerpt=record.candidate.evidence_excerpt,
+        )
+        record.status = "approved_candidate"
+        save_candidate_record(record)
+        append_candidate_review_entry(project_root, record, "refresh", rule_name=saved.stem)
+        return record, saved
+
+    if existing_path is not None:
+        rule = lifecycle.load_rule(existing_path)
+    else:
+        rule = LearningRule(
+            name=rule_name,
+            rule=record.candidate.suggested_rule,
+            why=record.candidate.decision_reason or "Approved from candidate review.",
+            scope=record.candidate.scope,
+            good_pattern=record.candidate.summary or record.candidate.suggested_rule,
+            avoid_pattern="",
+            summary=record.candidate.summary or record.candidate.suggested_rule,
+        )
+
+    rule.name = rule_name
+    rule.rule = record.candidate.suggested_rule
+    rule.summary = record.candidate.summary or record.candidate.suggested_rule
+    rule.scope = record.candidate.scope
+    rule.why = record.candidate.decision_reason or rule.why or "Approved from candidate review."
+    rule.source_event = record.candidate.source_event_path
+    rule.source_adapter = record.candidate.adapter
+    rule.derived_from_candidate = record.path.name
+    rule.decision = record.candidate.decision
+    rule.decision_reason = record.candidate.decision_reason
+    rule.evidence_excerpt = record.candidate.evidence_excerpt
+    rule.evidence = record.candidate.evidence_excerpt
+    if existing_path is not None and record.candidate.decision == "revise_existing":
+        rule.supersedes = rule_name
+
+    saved = lifecycle.promote(rule)
+    record.status = "approved_candidate"
+    save_candidate_record(record)
+    append_candidate_review_entry(project_root, record, "promote", rule_name=saved.stem)
+    return record, saved
+
+
+def reject_candidate(project_root: Path, candidate_ref: str | Path, *, reason: str | None = None) -> CandidateRecord:
+    record = resolve_candidate_record(project_root, candidate_ref)
+    record.status = "rejected_candidate"
+    if reason:
+        record.candidate.decision_reason = reason
+    save_candidate_record(record)
+    append_candidate_review_entry(project_root, record, "reject_candidate", reason=reason)
+    return record
+
+
+def mark_candidate_needs_review(project_root: Path, candidate_ref: str | Path, *, reason: str | None = None) -> CandidateRecord:
+    record = resolve_candidate_record(project_root, candidate_ref)
+    record.status = "needs_review_candidate"
+    if reason:
+        record.candidate.decision_reason = reason
+    save_candidate_record(record)
+    append_candidate_review_entry(project_root, record, "mark_needs_review", reason=reason)
+    return record
+
+
+def resolve_candidate_record(project_root: Path, candidate_ref: str | Path) -> CandidateRecord:
+    candidate_path = Path(candidate_ref)
+    if candidate_path.exists():
+        return load_candidate_record(candidate_path)
+    reference = str(candidate_ref).strip()
+    for path in list_candidate_paths(project_root):
+        if path.name == reference or path.stem == reference or path.stem == f"candidate-{slugify(reference)}":
+            return load_candidate_record(path)
+    raise FileNotFoundError(f"candidate not found: {candidate_ref}")
+
+
+def decision_to_history_action(decision: ComparisonDecisionType) -> str:
+    if decision == "new_rule":
+        return "candidate_created"
+    if decision == "refresh_existing":
+        return "refresh"
+    if decision == "revise_existing":
+        return "revise"
+    if decision == "fork_rule":
+        return "candidate_created"
+    return "reject_candidate"
+
+
+def should_reject_candidate(candidate: LearningCandidate) -> bool:
+    tokens = tokenize_for_compare(candidate.suggested_rule)
+    useful = [token for token in tokens if token not in GENERIC_REJECTION_TERMS and token not in STOPWORDS]
+    return len(useful) < 2
+
+
+def describe_field_diffs(candidate: LearningCandidate, rule: LearningRule) -> dict[str, str]:
+    return {
+        "rule": classify_text_diff(candidate.suggested_rule, rule.rule),
+        "summary": classify_text_diff(candidate.summary, rule.summary or rule.rule),
+        "scope": classify_text_diff(candidate.scope, rule.scope),
+        "evidence": "updated_evidence" if normalize_compare_text(candidate.evidence_excerpt) != normalize_compare_text(rule.evidence_excerpt or rule.evidence or "") else "unchanged",
+    }
+
+
+def classify_text_diff(left: str, right: str) -> str:
+    normalized_left = normalize_compare_text(left)
+    normalized_right = normalize_compare_text(right)
+    if normalized_left == normalized_right:
+        return "unchanged"
+    left_tokens = tokenize_for_compare(left)
+    right_tokens = tokenize_for_compare(right)
+    if set(left_tokens).issubset(set(right_tokens)):
+        return "narrowed"
+    if set(right_tokens).issubset(set(left_tokens)):
+        return "broadened"
+    if has_negation_conflict(left, right):
+        return "contradicted"
+    return "rewritten"
+
+
+def rule_similarity(candidate: LearningCandidate, rule: LearningRule) -> float:
+    candidate_tokens = set(tokenize_for_compare(" ".join([candidate.suggested_rule, candidate.summary, candidate.scope])))
+    rule_tokens = set(tokenize_for_compare(" ".join([rule.rule, rule.summary, rule.scope, " ".join(rule.triggers), " ".join(rule.task_types)])))
+    if not candidate_tokens or not rule_tokens:
+        return 0.0
+    overlap = len(candidate_tokens & rule_tokens)
+    union = len(candidate_tokens | rule_tokens)
+    return overlap / union if union else 0.0
+
+
+def has_negation_conflict(left: str, right: str) -> bool:
+    left_negated = any(term in tokenize_for_compare(left) for term in NEGATION_TERMS)
+    right_negated = any(term in tokenize_for_compare(right) for term in NEGATION_TERMS)
+    return left_negated != right_negated
+
+
+def normalize_compare_text(text: str) -> str:
+    normalized = " ".join(text.lower().split())
+    return re.sub(r"[^a-z0-9\s]", "", normalized)
+
+
+def tokenize_for_compare(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", normalize_compare_text(text))
+
+
+def split_frontmatter(text: str) -> tuple[str, str]:
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end >= 0:
+            return text[4:end], text[end + 5 :]
+    return "", text
+
+
+def parse_frontmatter(text: str) -> dict[str, str]:
+    metadata: dict[str, object] = {}
+    for line in text.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        parsed = value.strip()
+        if (parsed.startswith('"') and parsed.endswith('"')) or (parsed.startswith("{") and parsed.endswith("}")) or (parsed.startswith("[") and parsed.endswith("]")):
+            try:
+                parsed = json.loads(parsed)
+            except json.JSONDecodeError:
+                parsed = parsed.strip('"')
+        metadata[key.strip()] = parsed
+    return metadata
+
+
+def parse_markdown_sections(text: str) -> dict[str, str]:
+    sections: dict[str, str] = {}
+    title = ""
+    current: str | None = None
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        if raw_line.startswith("# ") and not title:
+            title = raw_line[2:].strip()
+            continue
+        if raw_line.startswith("## "):
+            if current is not None:
+                sections[current] = "\n".join(lines).strip()
+            current = raw_line[3:].strip()
+            lines = []
+            continue
+        lines.append(raw_line)
+    if current is not None:
+        sections[current] = "\n".join(lines).strip()
+    if title:
+        sections["title"] = title
+    return sections
 
 
 def build_event_corpus(project_root: Path, event: LearningEvent) -> str:
@@ -277,5 +827,9 @@ def processed_results_as_text(results: list[ProcessedEventResult]) -> str:
             line += f" -> {result.candidate_path}"
         elif result.reason:
             line += f" ({result.reason})"
+        if result.decision:
+            line += f" [decision={result.decision}]"
+        if result.matched_rule:
+            line += f" [matched_rule={result.matched_rule}]"
         lines.append(line)
     return "\n".join(lines)

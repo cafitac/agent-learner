@@ -5,7 +5,8 @@ from pathlib import Path
 
 from agent_learner.core.context import detect_context
 from agent_learner.core.lifecycle import LearningLifecycle
-from agent_learner.core.retrieval import RetrievedRule, RetrievalRequest, retrieve_rules
+from agent_learner.core.retrieval import RetrievedRule, RetrievalRequest, retrieve_rules, retrieve_rules_for_project
+from agent_learner.core.storage import resolve_learning_root
 
 DEFAULT_CONTEXT_LIMIT = 3
 DEFAULT_TOKEN_BUDGET = 240
@@ -26,12 +27,19 @@ def build_retrieval_request(prompt: str, project_root: Path, **kwargs: object) -
 
 
 def retrieve_for_codex(learning_root: Path, prompt: str, **kwargs: object) -> list[RetrievedRule]:
-    lifecycle = LearningLifecycle(learning_root)
-    project_root = learning_root.parents[2] if learning_root.name == "learning" else learning_root
-    results = retrieve_rules(lifecycle, build_retrieval_request(prompt, project_root, **kwargs))
+    if learning_root.name == "learning" and learning_root.parent.name == ".agent-learner":
+        project_root = learning_root.parents[1]
+    elif learning_root.name == "learning":
+        project_root = learning_root.parents[2]
+    else:
+        project_root = learning_root
+    request = build_retrieval_request(prompt, project_root, **kwargs)
+    results = retrieve_rules_for_project(project_root, request)
     if kwargs.get("track_usage", True):
+        lifecycle = LearningLifecycle(resolve_learning_root(project_root))
         for result in results:
-            lifecycle.touch_rule(result.path)
+            if result.source_scope == "project":
+                lifecycle.touch_rule(result.path)
     return results
 
 
@@ -113,7 +121,7 @@ def build_codex_user_prompt_hook_output(
     token_budget: int = DEFAULT_TOKEN_BUDGET,
 ) -> dict[str, object] | None:
     additional_context = render_codex_learning_context(
-        project_root / ".codex" / "references" / "learning",
+        resolve_learning_root(project_root),
         prompt,
         scope=scope,
         task_type=task_type,
@@ -132,7 +140,7 @@ def build_codex_user_prompt_hook_output(
 
 
 def format_retrieval_results_as_text(project_root: Path, prompt: str, **kwargs: object) -> str:
-    learning_root = project_root / ".codex" / "references" / "learning"
+    learning_root = resolve_learning_root(project_root)
     results = retrieve_for_codex(learning_root, prompt, **kwargs)
     if not results:
         return "No matching learning rules found."
@@ -145,7 +153,7 @@ def format_retrieval_results_as_text(project_root: Path, prompt: str, **kwargs: 
 
 
 def format_retrieval_results_as_json(project_root: Path, prompt: str, **kwargs: object) -> str:
-    learning_root = project_root / ".codex" / "references" / "learning"
+    learning_root = resolve_learning_root(project_root)
     results = retrieve_for_codex(learning_root, prompt, **kwargs)
     payload = [
         {
