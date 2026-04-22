@@ -9,6 +9,7 @@ const {
   buildExecutionPlan,
   buildDoctorReport,
   getWrapperVersion,
+  publishedCoreProbe,
   laneDoctorChecks,
 } = require('../lib/wrapper.cjs');
 
@@ -102,6 +103,24 @@ test('buildExecutionPlan maps dashboard to local uv run', () => {
   assert.deepEqual(plan.args, ['run', 'agent-learner', 'dashboard', '--project-root', '/tmp/repo', '--build', '--open', '--port', '8877']);
 });
 
+
+
+test('publishedCoreProbe parses successful doctor json', () => {
+  const fakeRunner = (tool, args) => {
+    assert.equal(tool, 'uvx');
+    assert.equal(args[0], '--from');
+    return {
+      status: 0,
+      stdout: JSON.stringify({ can_run_now: true, verdict: 'READY', remediations: [] }),
+      stderr: ''
+    };
+  };
+  const probe = publishedCoreProbe('/tmp/repo', fakeRunner);
+  assert.equal(probe.ok, true);
+  assert.equal(probe.payload.can_run_now, true);
+  assert.equal(probe.payload.verdict, 'READY');
+});
+
 test('doctor report captures local mode and tool status', () => {
   const packageRoot = path.resolve(__dirname, '..');
   const fakeRunner = (tool) => ({ status: 0, stdout: `${tool}-version\n`, stderr: '' });
@@ -115,6 +134,32 @@ test('doctor report captures local mode and tool status', () => {
   assert.match(report.advice.join(' '), /dashboard|uv run agent-learner/);
 });
 
+
+
+test('doctor report captures published mode readiness when core is reachable', () => {
+  const fakeRoot = path.join(__dirname, 'fixtures-no-pyproject');
+  const fakeRunner = (tool, args) => {
+    if (args && args.includes('--version')) {
+      return { status: 0, stdout: `${tool}-version
+`, stderr: '' };
+    }
+    if (tool === 'uvx') {
+      return {
+        status: 0,
+        stdout: JSON.stringify({ can_run_now: true, verdict: 'READY', remediations: [] }),
+        stderr: ''
+      };
+    }
+    return { status: 0, stdout: `${tool}-version
+`, stderr: '' };
+  };
+  const report = buildDoctorReport(fakeRoot, '/tmp/repo', fakeRunner);
+  assert.equal(report.mode, 'published');
+  assert.equal(report.dashboardReady, true);
+  assert.equal(report.verdict, 'READY');
+  assert.equal(report.publishedCoreProbe.ok, true);
+  assert.match(report.advice.join(' '), /reachable/);
+});
 test('laneDoctorChecks reports missing codex install surfaces', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-learner-wrapper-'));
   const report = laneDoctorChecks(tmp, 'codex');

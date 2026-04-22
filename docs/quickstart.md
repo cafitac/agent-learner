@@ -2,11 +2,16 @@
 
 ## Recommended default flow
 
-For most users:
+For most users, use one line:
 
 ```bash
-agent-learner doctor --project-root /path/to/consumer-repo
-agent-learner dashboard --project-root /path/to/consumer-repo --open
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root "$PWD" --open
+```
+
+Or with npm:
+
+```bash
+npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
 ```
 
 If the frontend bundle is missing, `dashboard` will try to build it unless you pass `--no-build`.
@@ -14,16 +19,20 @@ If the frontend bundle is missing, `dashboard` will try to build it unless you p
 ## Published Python package
 
 ```bash
-pipx install "agent-learner[web]"
-agent-learner doctor --project-root /path/to/consumer-repo
-agent-learner dashboard --project-root /path/to/consumer-repo --open
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root "$PWD" --open
 ```
 
 ## npm wrapper
 
 ```bash
-npx @cafitac/agent-learner doctor
-npx @cafitac/agent-learner dashboard --project-root /path/to/consumer-repo
+npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
+```
+
+Optional preflight check:
+
+```bash
+npx @cafitac/agent-learner@latest doctor --json
+npx @cafitac/agent-learner@latest core doctor --project-root "$PWD" --format json
 ```
 
 ## Source checkout

@@ -12,13 +12,14 @@ It is designed to layer onto existing agent environments rather than replace the
 
 ## Start here
 
-If you just want the main dashboard experience, use this:
+If you want the shortest one-line setup, use one of these:
 
 ```bash
-pipx install "agent-learner[web]"
-agent-learner doctor --project-root /path/to/repo
-agent-learner dashboard --project-root /path/to/repo --open
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root "$PWD" --open
+npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
 ```
+
+If you want a preflight check first, run `doctor` before `dashboard`.
 
 The dashboard defaults to `127.0.0.1:8766` to avoid common local MCP/gateway
 ports such as `8765`.
@@ -30,15 +31,13 @@ ports such as `8765`.
 ### 1. Published Python package
 
 ```bash
-pipx install "agent-learner[web]"
-agent-learner dashboard --project-root /path/to/repo
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root "$PWD" --open
 ```
 
 ### 2. npm / npx wrapper
 
 ```bash
-npx @cafitac/agent-learner doctor
-npx @cafitac/agent-learner dashboard --project-root /path/to/repo
+npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
 ```
 
 ### 3. Source checkout

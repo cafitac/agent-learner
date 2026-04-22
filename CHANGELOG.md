@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-22
+
+### Changed
+- Wrapper `doctor` now probes the published Python core in npm published mode, so release users get an accurate readiness verdict instead of a stale generic warning.
+- README and install docs now lead with true one-line setup commands for both the PyPI and npm paths.
+
 ## [0.3.0] - 2026-04-22
 
 ### Added

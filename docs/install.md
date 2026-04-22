@@ -14,12 +14,19 @@ If you are validating a release after publish, jump to:
 
 ## Recommended entrypoint
 
-For most users, the best path is:
+For most users, the shortest stable path is one line:
 
 ```bash
-agent-learner doctor --project-root /path/to/consumer-repo
-agent-learner dashboard --project-root /path/to/consumer-repo --open
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root "$PWD" --open
 ```
+
+If you prefer the npm wrapper:
+
+```bash
+npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
+```
+
+If you want a preflight check first, run `doctor` before `dashboard`.
 
 Everything below is installation detail or alternative entrypoints.
 
@@ -42,14 +49,14 @@ python -m pip install -e .[dev]
 Published-package goal:
 
 ```bash
-pipx install "agent-learner[web]" && agent-learner dashboard --project-root /path/to/consumer-repo
+pipx install "agent-learner[web]" && agent-learner dashboard --project-root "$PWD" --open
 ```
 
-Recommended default flow:
+Recommended default flow with a preflight check:
 
 ```bash
-agent-learner doctor --project-root /path/to/consumer-repo
-agent-learner dashboard --project-root /path/to/consumer-repo --open
+agent-learner doctor --project-root "$PWD"
+agent-learner dashboard --project-root "$PWD" --open
 ```
 
 The dashboard default port is `8766`. This avoids common local MCP/gateway
@@ -58,8 +65,14 @@ ports such as `8765`.
 npm-wrapper goal:
 
 ```bash
-npx @cafitac/agent-learner doctor
-npx @cafitac/agent-learner dashboard --project-root /path/to/consumer-repo
+npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
+```
+
+Optional preflight check:
+
+```bash
+npx @cafitac/agent-learner@latest doctor --json
+npx @cafitac/agent-learner@latest core doctor --project-root "$PWD" --format json
 ```
 
 Source checkout helper:
