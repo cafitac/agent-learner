@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
-from agent_learner.core.fastapi_app import app_root_dir, frontend_dist_dir, frontend_src_dir
+from agent_learner.core.fastapi_app import app_root_dir, frontend_dist_dir, frontend_src_dir, frontend_dist_is_valid
 from agent_learner.cli.main import main as cli_main
 from agent_learner.core.lifecycle import LearningLifecycle
 from agent_learner.core.models import LearningRule
@@ -504,6 +504,7 @@ def test_fastapi_frontend_scaffold_paths() -> None:
     components_path = frontend_src_dir() / "components.tsx"
     types_path = frontend_src_dir() / "types.ts"
     assert frontend_dist_dir().name == "frontend_dist"
+    assert frontend_dist_is_valid(frontend_dist_dir())
     assert app_path.exists()
     assert components_path.exists()
     assert types_path.exists()
@@ -526,13 +527,18 @@ def test_fastapi_frontend_scaffold_paths() -> None:
 
 def test_doctor_helpers_detect_existing_dist(monkeypatch, tmp_path: Path) -> None:
     dist = frontend_dist_dir()
-    dist.mkdir(parents=True, exist_ok=True)
-    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
-    report = collect_dashboard_doctor(tmp_path)
-    assert "ready_fastapi" in report
-    assert "remediations" in report
-    assert "verdict" in report
-    assert "recommended_path" in report
+    original = (dist / "index.html").read_text(encoding="utf-8")
+    try:
+        dist.mkdir(parents=True, exist_ok=True)
+        (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+        report = collect_dashboard_doctor(tmp_path)
+        assert "ready_fastapi" in report
+        assert "remediations" in report
+        assert "verdict" in report
+        assert "recommended_path" in report
+        assert report["frontend"]["dist_valid"] is False
+    finally:
+        (dist / "index.html").write_text(original, encoding="utf-8")
     assert ensure_frontend_dist(tmp_path, build=False) == dist
 
 
@@ -673,3 +679,10 @@ def test_rebuild_index_command_outputs_paths(monkeypatch, tmp_path: Path, capsys
     payload = json.loads(capsys.readouterr().out)
     assert payload[0]["scope"] == "project"
     assert payload[0]["total_rules"] >= 1
+
+
+def test_frontend_dist_validation_rejects_blank_shell(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    assert frontend_dist_is_valid(dist) is False

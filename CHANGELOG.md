@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-22
+
+### Fixed
+- Bundled React dashboard assets are now packaged with a valid `index.html`, fixing the blank white screen in published npm/PyPI dashboard launches.
+- Doctor and FastAPI startup now validate the bundled frontend shell so broken dashboard assets fail loudly instead of serving an empty page.
+
 ## [0.3.2] - 2026-04-22
 
 ### Added

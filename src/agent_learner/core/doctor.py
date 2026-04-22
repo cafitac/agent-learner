@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .fastapi_app import app_root_dir, bundled_frontend_dist_dir, frontend_build_output_dir, frontend_dist_dir
+from .fastapi_app import app_root_dir, bundled_frontend_dist_dir, frontend_build_output_dir, frontend_dist_dir, frontend_dist_is_valid
 from .storage import ensure_global_learning_root, resolve_learning_root
 
 
@@ -46,6 +46,8 @@ def collect_dashboard_doctor(project_root: Path, *, host: str = "127.0.0.1", por
     frontend_dist = frontend_dist_dir()
     node_modules = frontend_root / "node_modules"
     port_ok = is_port_available(host, port)
+    dist_index_ok = (frontend_dist / "index.html").exists()
+    dist_valid = frontend_dist_is_valid(frontend_dist) if dist_index_ok else False
     payload = {
         "project_root": str(project_root),
         "python": {"ok": True, "detail": sys.executable},
@@ -60,7 +62,8 @@ def collect_dashboard_doctor(project_root: Path, *, host: str = "127.0.0.1", por
             "package_json": (frontend_root / "package.json").exists(),
             "node_modules": node_modules.exists(),
             "dist": frontend_dist.exists(),
-            "dist_index": (frontend_dist / "index.html").exists(),
+            "dist_index": dist_index_ok,
+            "dist_valid": dist_valid,
         },
         "brains": {
             "local_learning_root": str(resolve_learning_root(project_root)),
@@ -71,9 +74,9 @@ def collect_dashboard_doctor(project_root: Path, *, host: str = "127.0.0.1", por
     payload["ready_fastapi"] = bool(
         payload["fastapi"]["ok"]
         and payload["uvicorn"]["ok"]
-        and payload["frontend"]["dist_index"]
+        and payload["frontend"]["dist_valid"]
     )
-    payload["ready_static"] = bool(payload["frontend"]["dist_index"])
+    payload["ready_static"] = bool(payload["frontend"]["dist_valid"])
     payload["can_auto_build"] = bool(
         payload["node"]["ok"]
         and payload["npm"]["ok"]
@@ -90,6 +93,8 @@ def collect_dashboard_doctor(project_root: Path, *, host: str = "127.0.0.1", por
         remediations.append("Run `cd frontend && npm install`.")
     if not payload["frontend"]["dist_index"]:
         remediations.append("Run `agent-learner dashboard --project-root <repo> --build` or `cd frontend && npm run build`.")
+    elif not payload["frontend"]["dist_valid"]:
+        remediations.append("Frontend dist exists but is invalid; rebuild with `cd frontend && npm run build`.")
     if not payload["port"]["ok"]:
         remediations.append(f"Port {port} is busy; use `agent-learner dashboard --port {port + 1}` or free the port.")
     if payload["ready_fastapi"] and payload["port"]["ok"]:
@@ -131,6 +136,7 @@ def format_doctor_text(report: dict[str, object]) -> str:
         f"frontend package.json: {'ok' if frontend['package_json'] else 'missing'}",
         f"frontend node_modules: {'ok' if frontend['node_modules'] else 'missing'}",
         f"frontend dist: {'ok' if frontend['dist_index'] else 'missing'}",
+        f"frontend dist valid: {'ok' if frontend['dist_valid'] else 'invalid'}",
         f"port {report['port']['host']}:{report['port']['port']}: {'ok' if report['port']['ok'] else 'busy'}",
         f"ready_fastapi={report['ready_fastapi']}",
         f"ready_static={report['ready_static']}",
@@ -149,7 +155,7 @@ def ensure_frontend_dist(project_root: Path, *, build: bool = False) -> Path:
     project_root = project_root.resolve()
     frontend_root = frontend_root_dir(project_root)
     dist = frontend_dist_dir()
-    if (dist / "index.html").exists():
+    if (dist / "index.html").exists() and frontend_dist_is_valid(dist):
         return dist
     if not build:
         raise RuntimeError(

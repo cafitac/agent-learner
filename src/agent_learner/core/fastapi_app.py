@@ -37,6 +37,14 @@ def frontend_src_dir() -> Path:
     return app_root_dir() / "frontend" / "src"
 
 
+def frontend_dist_is_valid(dist_dir: Path) -> bool:
+    index_path = dist_dir / "index.html"
+    if not index_path.exists():
+        return False
+    text = index_path.read_text(encoding="utf-8", errors="ignore")
+    return 'id="root"' in text and ('/assets/' in text or '<script' in text)
+
+
 def create_fastapi_app(project_root: Path):
     try:
         from fastapi import FastAPI, HTTPException
@@ -48,9 +56,9 @@ def create_fastapi_app(project_root: Path):
     project_root = project_root.resolve()
     app = FastAPI(title="agent-learner dashboard", version=__version__)
     dist_dir = frontend_dist_dir()
-    if not dist_dir.exists():
+    if not dist_dir.exists() or not frontend_dist_is_valid(dist_dir):
         raise RuntimeError(
-            "Built frontend dist was not found. Run `cd frontend && npm install && npm run build` before `serve-dashboard-fastapi`."
+            "Built frontend dist was not found or is invalid. Run `cd frontend && npm install && npm run build` before `serve-dashboard-fastapi`."
         )
 
     @app.get("/api/projects")
