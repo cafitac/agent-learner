@@ -59,7 +59,7 @@ Docker is optional convenience only. It is not the primary OSS install path.
 
 ## Typical workflow
 
-1. Point `agent-learner` at a project
+1. Install the Codex hook once at user scope or per project
 2. Run `doctor`
 3. Open the dashboard
 4. Review rules, candidates, and history
@@ -72,6 +72,7 @@ Docker is optional convenience only. It is not the primary OSS install path.
 - project-local knowledge lives under `<project>/.agent-learner/`
 - reusable shared knowledge lives under `~/.agent-learner/global/`
 - retrieval is local-first, then global
+- Codex can be installed once at user scope while still writing learning assets per project
 - external wiki/KB systems remain separate and are not part of the canonical learning lifecycle
 
 ### Indexed retrieval and pruning
@@ -96,6 +97,7 @@ Static dashboard generation and stdlib-only serving still exist, but they are se
 ```bash
 agent-learner doctor --project-root /path/to/repo
 agent-learner dashboard --project-root /path/to/repo --open
+agent-learner install-codex
 agent-learner bootstrap --target /path/to/repo
 agent-learner review-candidates --project-root /path/to/repo
 agent-learner history --project-root /path/to/repo --latest-per-rule --last 10

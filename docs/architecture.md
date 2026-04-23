@@ -3,7 +3,7 @@
 - `src/agent_learner/core/` holds lifecycle and retrieval logic.
 - `src/agent_learner/adapters/` holds adapter-specific installation and rendering surfaces.
 - `frontend/` holds the React + Vite dashboard UI that talks to the FastAPI dashboard surface.
-- Consumer repos should install adapters independently.
+- Consumer repos can install adapters independently, while the Codex adapter can also be installed once at user scope and still resolve per-project learning roots from `cwd`.
 - `agent-learner` owns the canonical learning plane, not cross-runtime wiki management.
 - Codex prompt application is retrieval-first: approved learned rules are ranked per-turn and injected through `UserPromptSubmit` as ephemeral additional context instead of expanding the persistent system prompt.
 - Long-lived storage remains file-native under `.agent-learner/learning/`, while runtime context stays token-budgeted and temporary.

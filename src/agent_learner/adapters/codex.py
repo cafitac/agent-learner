@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 from .common import append_lines_if_missing, ensure_dir, merge_json_file, write_text
@@ -46,6 +47,30 @@ def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = N
         return
 
 
+def detect_project_root(cwd: Path) -> Path:
+    current = cwd.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(current),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        root = (result.stdout or "").strip()
+        if result.returncode == 0 and root:
+            return Path(root).resolve()
+    except Exception:
+        pass
+    for _ in range(20):
+        if any((current / marker).exists() for marker in ("pyproject.toml", "package.json", "go.mod", "Cargo.toml", ".git")):
+            return current
+        if current.parent == current:
+            break
+        current = current.parent
+    return cwd.resolve()
+
+
 def emit_shared_event(project_root: Path, payload: dict, session_id: str) -> None:
     run_shared_cli(project_root, ["capture-event", "--project-root", str(project_root), "--adapter", "codex", "--event-name", "stop", "--session-id", session_id], payload)
     run_shared_cli(project_root, ["process-events", "--project-root", str(project_root), "--adapter", "codex", "--limit", "1"], None)
@@ -54,9 +79,10 @@ def emit_shared_event(project_root: Path, payload: dict, session_id: str) -> Non
 def main() -> int:
     payload = read_json()
     cwd = Path(payload.get("cwd") or os.getcwd()).resolve()
+    project_root = detect_project_root(cwd)
     session_id = payload.get("session_id") or datetime.now().strftime("%Y%m%d-%H%M%S")
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    learning_root = cwd / ".agent-learner" / "learning"
+    learning_root = project_root / ".agent-learner" / "learning"
     inbox = learning_root / "inbox"
     approved = learning_root / "approved"
     needs_review = learning_root / "needs_review"
@@ -64,7 +90,7 @@ def main() -> int:
     for path in (inbox, approved, needs_review, deprecated):
         path.mkdir(parents=True, exist_ok=True)
 
-    emit_shared_event(cwd, payload, session_id)
+    emit_shared_event(project_root, payload, session_id)
 
     slug = session_id.replace("/", "-").replace(":", "-")
     (inbox / f"session-learning-{slug}.md").write_text(
@@ -115,13 +141,37 @@ def read_json() -> dict:
         return {}
 
 
+def detect_project_root(cwd: Path) -> Path:
+    current = cwd.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(current),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        root = (result.stdout or "").strip()
+        if result.returncode == 0 and root:
+            return Path(root).resolve()
+    except Exception:
+        pass
+    for _ in range(20):
+        if any((current / marker).exists() for marker in ("pyproject.toml", "package.json", "go.mod", "Cargo.toml", ".git")):
+            return current
+        if current.parent == current:
+            break
+        current = current.parent
+    return cwd.resolve()
+
+
 def main() -> int:
     payload = read_json()
     prompt = (payload.get("prompt") or payload.get("user_prompt") or payload.get("userPrompt") or "").strip()
     if not prompt:
         return 0
 
-    project_root = Path(payload.get("cwd") or os.getcwd()).resolve()
+    project_root = detect_project_root(Path(payload.get("cwd") or os.getcwd()).resolve())
     argv: list[str] | None = None
     if importlib.util.find_spec("agent_learner") is not None:
         argv = [sys.executable, "-m", "agent_learner.cli.main", "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
@@ -218,21 +268,38 @@ ROOT_GITIGNORE_LINES = [
 
 
 def install_codex_adapter(target_root: Path) -> list[Path]:
+    return install_codex_adapter_with_scope(target_root, scope="project")
+
+
+def _command_for_script(script_path: Path, *, scope: str) -> str:
+    if scope == "user":
+        return f"python3 {shlex.quote(str(script_path))}"
+    return f"python3 ./.codex/references/scripts/{script_path.name}"
+
+
+def install_codex_adapter_with_scope(target_root: Path, *, scope: str = "project") -> list[Path]:
+    if scope not in {"project", "user"}:
+        raise ValueError(f"unsupported codex install scope: {scope}")
     written: list[Path] = []
     codex_root = ensure_dir(target_root / ".codex")
-    learning_root = ensure_dir(target_root / ".agent-learner" / "learning")
-    for child in ("inbox", "approved", "needs_review", "deprecated"):
-        ensure_dir(learning_root / child)
-    ensure_dir(target_root / ".agent-learner" / "events" / "codex")
-    ensure_dir(target_root / ".agent-learner" / "history")
+    auto_script = codex_root / "references" / "scripts" / "auto_session_learning.py"
+    prompt_script = codex_root / "references" / "scripts" / "codex_prompt_context.py"
 
-    written.append(write_text(learning_root / "README.md", LEARNING_README))
-    written.append(write_text(codex_root / "references" / "scripts" / "auto_session_learning.py", AUTO_SESSION_LEARNING))
-    written.append(write_text(codex_root / "references" / "scripts" / "codex_prompt_context.py", PROMPT_CONTEXT))
+    if scope == "project":
+        learning_root = ensure_dir(target_root / ".agent-learner" / "learning")
+        for child in ("inbox", "approved", "needs_review", "deprecated"):
+            ensure_dir(learning_root / child)
+        ensure_dir(target_root / ".agent-learner" / "events" / "codex")
+        ensure_dir(target_root / ".agent-learner" / "history")
+        written.append(write_text(learning_root / "README.md", LEARNING_README))
+
+    written.append(write_text(auto_script, AUTO_SESSION_LEARNING))
+    written.append(write_text(prompt_script, PROMPT_CONTEXT))
     written.append(write_text(codex_root / "skills" / "session-wrap" / "SKILL.md", SESSION_WRAP))
     written.append(write_text(codex_root / "skills" / "feedback-learning" / "SKILL.md", FEEDBACK_LEARNING))
     written.append(write_text(codex_root / "skills" / "hermit-learner" / "SKILL.md", HERMIT_LEARNER))
-    written.append(append_lines_if_missing(target_root / ".gitignore", ROOT_GITIGNORE_LINES))
+    if scope == "project":
+        written.append(append_lines_if_missing(target_root / ".gitignore", ROOT_GITIGNORE_LINES))
 
     merge_json_file(
         codex_root / "hooks.json",
@@ -243,7 +310,8 @@ def install_codex_adapter(target_root: Path) -> list[Path]:
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "python3 ./.codex/references/scripts/codex_prompt_context.py",
+                                "command": _command_for_script(prompt_script, scope=scope),
+                                "statusMessage": "AgentLearner: applying learned context",
                                 "timeout": 15,
                             }
                         ]
@@ -254,7 +322,8 @@ def install_codex_adapter(target_root: Path) -> list[Path]:
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "python3 ./.codex/references/scripts/auto_session_learning.py",
+                                "command": _command_for_script(auto_script, scope=scope),
+                                "statusMessage": "AgentLearner: capturing learning candidates",
                                 "timeout": 15,
                             }
                         ]
@@ -264,5 +333,6 @@ def install_codex_adapter(target_root: Path) -> list[Path]:
         },
     )
     written.append(codex_root / "hooks.json")
-    written.extend(migrate_legacy_learning_assets(target_root))
+    if scope == "project":
+        written.extend(migrate_legacy_learning_assets(target_root))
     return written

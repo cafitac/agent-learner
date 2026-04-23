@@ -6,6 +6,20 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.16] - 2026-04-23
+
+### Added
+- `agent-learner install-codex` now supports a user-scope Codex install so one global hook setup can serve all local repos.
+- Codex hook status messages now identify AgentLearner-triggered prompt injection and learning capture directly in the Codex hook UI.
+
+### Changed
+- `install-codex` now defaults to `user` scope, while repo-local Codex setup remains available through `--scope project`.
+- User-scope Codex hooks now resolve the active repo from `cwd` and continue writing learning assets per project before falling back to global promotion.
+- Wrapper parsing, doctor checks, and install routing now understand Codex user-scope installs as the default path.
+
+### Fixed
+- Codex learning hooks now target the detected project root instead of the raw working directory, reducing missed or misplaced repo-local learning state during global hook installs.
+
 ## [0.3.15] - 2026-04-23
 
 ### Fixed

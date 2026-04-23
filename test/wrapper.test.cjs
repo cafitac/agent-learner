@@ -20,6 +20,18 @@ test('parseArgs handles codex install', () => {
     lane: 'codex',
     action: 'install',
     target: '/tmp/repo',
+    scope: null,
+    json: false,
+  });
+});
+
+test('parseArgs handles codex install user scope', () => {
+  assert.deepEqual(parseArgs(['codex', 'install', '--scope', 'user']), {
+    type: 'lane',
+    lane: 'codex',
+    action: 'install',
+    target: null,
+    scope: 'user',
     json: false,
   });
 });
@@ -27,7 +39,7 @@ test('parseArgs handles codex install', () => {
 test('parseArgs handles version and doctor', () => {
   assert.deepEqual(parseArgs(['version']), { type: 'version' });
   assert.deepEqual(parseArgs(['doctor', '--json']), { type: 'doctor', json: true });
-  assert.deepEqual(parseArgs(['install-codex', '--target', '/tmp/repo']), { type: 'lane', lane: 'codex', action: 'install', target: '/tmp/repo', json: false });
+  assert.deepEqual(parseArgs(['install-codex', '--target', '/tmp/repo']), { type: 'lane', lane: 'codex', action: 'install', target: '/tmp/repo', scope: null, json: false });
   assert.deepEqual(parseArgs(['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json']), { type: 'core', coreArgs: ['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json'] });
   assert.deepEqual(parseArgs(['update']), { type: 'update' });
 });
@@ -49,6 +61,7 @@ test('parseArgs handles lane doctor json', () => {
     lane: 'codex',
     action: 'doctor',
     target: '/tmp/repo',
+    scope: null,
     json: true,
   });
 });
@@ -65,7 +78,15 @@ test('buildExecutionPlan uses local uv run inside repo checkout', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: '/tmp/repo', json: false }, packageRoot, '/tmp/repo');
   assert.equal(plan.mode, 'local');
   assert.equal(plan.command, 'uv');
-  assert.deepEqual(plan.args, ['run', 'agent-learner', 'bootstrap', '--target', '/tmp/repo', '--adapters', 'codex']);
+  assert.deepEqual(plan.args, ['run', 'agent-learner', 'install-codex', '--target', '/tmp/repo', '--scope', 'user']);
+});
+
+test('buildExecutionPlan preserves user scope for codex install', () => {
+  const packageRoot = path.resolve(__dirname, '..');
+  const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: null, scope: 'user', json: false }, packageRoot, '/tmp/repo');
+  assert.equal(plan.mode, 'local');
+  assert.equal(plan.command, 'uv');
+  assert.deepEqual(plan.args, ['run', 'agent-learner', 'install-codex', '--scope', 'user']);
 });
 
 test('buildExecutionPlan falls back to uvx without local core', () => {
@@ -169,6 +190,23 @@ test('laneDoctorChecks reports missing codex install surfaces', () => {
   const report = laneDoctorChecks(tmp, 'codex');
   assert.equal(report.ok, false);
   assert.ok(report.missing.includes('.codex/hooks.json'));
+});
+
+test('laneDoctorChecks reports healthy user-scoped codex install surfaces', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-learner-wrapper-'));
+  fs.mkdirSync(path.join(tmp, '.codex', 'references', 'scripts'), { recursive: true });
+  fs.mkdirSync(path.join(tmp, '.codex', 'skills', 'session-wrap'), { recursive: true });
+  fs.mkdirSync(path.join(tmp, '.codex', 'skills', 'feedback-learning'), { recursive: true });
+  fs.mkdirSync(path.join(tmp, '.codex', 'skills', 'hermit-learner'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, '.codex', 'hooks.json'), '{}');
+  fs.writeFileSync(path.join(tmp, '.codex', 'references', 'scripts', 'auto_session_learning.py'), '#!/usr/bin/env python3\n');
+  fs.writeFileSync(path.join(tmp, '.codex', 'references', 'scripts', 'codex_prompt_context.py'), '#!/usr/bin/env python3\n');
+  fs.writeFileSync(path.join(tmp, '.codex', 'skills', 'session-wrap', 'SKILL.md'), '...');
+  fs.writeFileSync(path.join(tmp, '.codex', 'skills', 'feedback-learning', 'SKILL.md'), '...');
+  fs.writeFileSync(path.join(tmp, '.codex', 'skills', 'hermit-learner', 'SKILL.md'), '...');
+  const report = laneDoctorChecks(tmp, 'codex', 'user');
+  assert.equal(report.ok, true);
+  assert.equal(report.scope, 'user');
 });
 
 test('laneDoctorChecks reports healthy claude install surfaces', () => {

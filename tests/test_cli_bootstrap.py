@@ -21,6 +21,28 @@ def test_bootstrap_codex_only(monkeypatch, tmp_path: Path) -> None:
     assert not (tmp_path / ".claude").exists()
 
 
+def test_install_codex_user_scope_writes_to_home(monkeypatch, tmp_path: Path) -> None:
+    home_root = tmp_path / "home"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "install-codex", "--scope", "user", "--target", str(home_root)],
+    )
+    assert cli_main() == 0
+    assert (home_root / ".codex" / "hooks.json").exists()
+    assert not (home_root / ".agent-learner" / "learning").exists()
+
+
+def test_install_codex_defaults_to_user_scope(monkeypatch, tmp_path: Path) -> None:
+    home_root = tmp_path / "home-default"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "install-codex", "--target", str(home_root)],
+    )
+    assert cli_main() == 0
+    assert (home_root / ".codex" / "hooks.json").exists()
+    assert not (home_root / ".agent-learner" / "learning").exists()
+
+
 def test_doctor_command_reports_status(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setattr(
         "sys.argv",
@@ -150,6 +172,19 @@ def test_qa_codex_smoke_command_runs_end_to_end(monkeypatch, tmp_path: Path, cap
     monkeypatch.setattr(
         "sys.argv",
         ["agent-learner", "qa-codex-smoke"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["returncode"] == 0
+    assert payload["payload"]["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+    assert "codex-hook-tests" in payload["payload"]["hookSpecificOutput"]["additionalContext"]
+
+
+def test_qa_codex_smoke_command_runs_end_to_end_user_scope(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "qa-codex-smoke", "--scope", "user"],
     )
     assert cli_main() == 0
     payload = json.loads(capsys.readouterr().out)

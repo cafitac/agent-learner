@@ -104,6 +104,20 @@ or required OSS installation path.
 agent-learner install-codex --target /path/to/consumer-repo
 ```
 
+By default, `install-codex` installs the Codex hook once for your user-level
+Codex home so every project can learn into its own local `.agent-learner/`
+tree automatically:
+
+```bash
+agent-learner install-codex
+```
+
+If you want the older repo-local hook install, opt into it explicitly:
+
+```bash
+agent-learner install-codex --scope project --target /path/to/consumer-repo
+```
+
 This creates:
 - `.codex/hooks.json`
 - `.codex/skills/session-wrap/`
@@ -125,6 +139,9 @@ Canonical durable learning storage lives under `.agent-learner/learning/`.
 `.codex/` remains the adapter and hook surface, not the system of record.
 External wiki/KB systems are intentionally out of scope for normal adapter install
 and runtime behavior.
+With the default `user` scope, hook scripts are installed under `~/.codex/`, but the hook
+still resolves the active project from `cwd` and writes learning assets under the
+current repo instead of mixing everything into the user home.
 If legacy rules already exist under `.codex/references/learning/`, install/bootstrap
 copies them into the canonical root and writes a migration marker so reads switch
 cleanly without hiding existing assets.
@@ -271,6 +288,7 @@ Common wrapper aliases now work directly:
 
 ```bash
 agent-learner install-codex --target "$PWD"
+agent-learner install-codex
 agent-learner install-claude --target "$PWD"
 agent-learner rebuild-index --project-root "$PWD"
 agent-learner bootstrap --target "$PWD"

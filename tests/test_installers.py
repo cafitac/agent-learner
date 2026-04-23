@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter
+from agent_learner.adapters.codex import install_codex_adapter_with_scope
 from agent_learner.core.storage import read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
 
 
@@ -19,9 +20,30 @@ def test_install_codex_adapter_creates_expected_assets(tmp_path: Path) -> None:
 
     hooks = json.loads((tmp_path / ".codex" / "hooks.json").read_text(encoding="utf-8"))
     assert "UserPromptSubmit" in hooks["hooks"]
-    command = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+    prompt_hook = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]
+    command = prompt_hook["command"]
     assert "codex_prompt_context.py" in command
+    assert prompt_hook["statusMessage"] == "AgentLearner: applying learned context"
+    stop_hook = hooks["hooks"]["Stop"][0]["hooks"][0]
+    assert stop_hook["statusMessage"] == "AgentLearner: capturing learning candidates"
     assert ".omx/wiki" not in (tmp_path / ".codex" / "references" / "scripts" / "auto_session_learning.py").read_text(encoding="utf-8")
+
+
+def test_install_codex_adapter_user_scope_creates_user_assets_only(tmp_path: Path) -> None:
+    home_root = tmp_path / "home"
+    written = install_codex_adapter_with_scope(home_root, scope="user")
+    hooks_path = home_root / ".codex" / "hooks.json"
+    assert hooks_path.exists()
+    assert (home_root / ".codex" / "skills" / "session-wrap" / "SKILL.md").exists()
+    assert not (home_root / ".agent-learner" / "learning").exists()
+    assert not (home_root / ".gitignore").exists()
+    assert written
+
+    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
+    prompt_hook = hooks["hooks"]["UserPromptSubmit"][0]["hooks"][0]
+    command = prompt_hook["command"]
+    assert str(home_root / ".codex" / "references" / "scripts" / "codex_prompt_context.py") in command
+    assert prompt_hook["statusMessage"] == "AgentLearner: applying learned context"
 
 
 def test_install_claude_adapter_creates_expected_assets(tmp_path: Path) -> None:

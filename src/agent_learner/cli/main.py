@@ -10,6 +10,7 @@ import webbrowser
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter
+from agent_learner.adapters.codex import install_codex_adapter_with_scope
 from agent_learner.adapters.codex_context import (
     build_codex_user_prompt_hook_output,
     format_retrieval_results_as_json,
@@ -99,7 +100,8 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard_cmd.add_argument("--open", action="store_true")
 
     codex_cmd = sub.add_parser("install-codex")
-    codex_cmd.add_argument("--target", default=".")
+    codex_cmd.add_argument("--target")
+    codex_cmd.add_argument("--scope", choices=["project", "user"], default="user")
 
     claude_cmd = sub.add_parser("install-claude")
     claude_cmd.add_argument("--target", default=".")
@@ -111,6 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="codex,claude",
         help="Comma-separated adapter list: codex, claude",
     )
+    bootstrap_cmd.add_argument("--codex-scope", choices=["project", "user"], default="project")
 
     promote_cmd = sub.add_parser("promote-demo")
     promote_cmd.add_argument("--root", default=".agent-learner")
@@ -170,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke_cmd = sub.add_parser("qa-codex-smoke")
     smoke_cmd.add_argument("--project-root", default=".")
     smoke_cmd.add_argument("--prompt", default="fix the codex prompt hook and keep tests green")
+    smoke_cmd.add_argument("--scope", choices=["project", "user"], default="project")
 
     claude_smoke_cmd = sub.add_parser("qa-claude-smoke")
     claude_smoke_cmd.add_argument("--project-root", default=".")
@@ -312,7 +316,8 @@ def main() -> int:
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")
         return 0
     if args.command == "install-codex":
-        written = install_codex_adapter(Path(args.target).resolve())
+        target = Path(args.target).expanduser().resolve() if args.target else (Path.home() if args.scope == "user" else Path.cwd().resolve())
+        written = install_codex_adapter_with_scope(target, scope=args.scope)
         for path in written:
             print(path)
         return 0
@@ -326,7 +331,7 @@ def main() -> int:
         adapters = [item.strip() for item in args.adapters.split(",") if item.strip()]
         written: list[Path] = []
         if "codex" in adapters:
-            written.extend(install_codex_adapter(target))
+            written.extend(install_codex_adapter_with_scope(target, scope=args.codex_scope))
         if "claude" in adapters:
             written.extend(install_claude_adapter(target))
         for path in dict.fromkeys(written):
@@ -734,10 +739,17 @@ def main() -> int:
     if args.command == "qa-codex-smoke":
         target = Path(args.project_root).resolve()
         cleanup_dir: tempfile.TemporaryDirectory[str] | None = None
+        user_home_dir: tempfile.TemporaryDirectory[str] | None = None
         if str(target) == str(Path('.').resolve()):
             cleanup_dir = tempfile.TemporaryDirectory(prefix="agent-learner-smoke-")
             target = Path(cleanup_dir.name).resolve()
-        install_codex_adapter(target)
+        if args.scope == "user":
+            user_home_dir = tempfile.TemporaryDirectory(prefix="agent-learner-codex-user-home-")
+            install_codex_adapter_with_scope(Path(user_home_dir.name).resolve(), scope="user")
+            script_path = Path(user_home_dir.name).resolve() / ".codex" / "references" / "scripts" / "codex_prompt_context.py"
+        else:
+            install_codex_adapter(target)
+            script_path = target / ".codex" / "references" / "scripts" / "codex_prompt_context.py"
         lifecycle = LearningLifecycle(resolve_learning_root(target))
         lifecycle.promote(
             LearningRule(
@@ -755,7 +767,6 @@ def main() -> int:
                 confidence="high",
             )
         )
-        script_path = target / ".codex" / "references" / "scripts" / "codex_prompt_context.py"
         env = dict(os.environ)
         env["PATH"] = f"{Path(sys.executable).parent}:{env.get('PATH', '')}"
         src_path = str(Path(__file__).resolve().parents[2])
@@ -790,6 +801,8 @@ def main() -> int:
         )
         if cleanup_dir is not None:
             cleanup_dir.cleanup()
+        if user_home_dir is not None:
+            user_home_dir.cleanup()
         return 0 if result.returncode == 0 else result.returncode
 
     if args.command == "render-codex-context":
