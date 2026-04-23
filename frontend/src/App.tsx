@@ -6,13 +6,6 @@ function textValue(value: unknown) {
   return String(value ?? "").trim();
 }
 
-function isLowSignalDraft(rule: Record<string, unknown>) {
-  const status = textValue(rule.status);
-  const summary = textValue(rule.summary);
-  const scopeText = textValue(rule.scope);
-  return status === "draft" && !summary && !scopeText;
-}
-
 function isPlaceholderRuleName(name: unknown) {
   const value = textValue(name);
   return value.startsWith("learned-rule-draft-") || value.startsWith("session-learning-");
@@ -47,7 +40,7 @@ export function App() {
     return "overview" as const;
   };
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [scope, setScope] = useState<"curated" | "drafts" | "local" | "global">("curated");
+  const [scope, setScope] = useState<"curated" | "needs_review" | "local" | "global">("curated");
   const [page, setPage] = useState<"overview" | "rules" | "candidates" | "history">(getInitialPage);
   const [status, setStatus] = useState("Loading...");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
@@ -180,11 +173,11 @@ export function App() {
     const curated = ((summary.merged.rules as Record<string, unknown>[]) ?? []).filter((rule) => isCuratedRule(rule));
     const local = (summary.local.rules as Record<string, unknown>[]) ?? [];
     const global = (summary.global.rules as Record<string, unknown>[]) ?? [];
-    const drafts = [...local, ...global].filter((rule) => {
+    const needsReview = [...local, ...global].filter((rule) => {
       const status = textValue(rule.status);
-      return status === "draft" || status === "needs_review";
+      return status === "needs_review";
     });
-    return { curated, drafts, local, global };
+    return { curated, needs_review: needsReview, local, global };
   }, [summary]);
   const rules = useMemo(() => (ruleCollections ? ruleCollections[scope] : []), [ruleCollections, scope]);
   const filteredRules = useMemo(() => {
@@ -210,15 +203,15 @@ export function App() {
       ruleCollections
         ? {
             curated: ruleCollections.curated.length,
-            drafts: ruleCollections.drafts.length,
+            needs_review: ruleCollections.needs_review.length,
             local: ruleCollections.local.length,
             global: ruleCollections.global.length,
           }
-        : { curated: 0, drafts: 0, local: 0, global: 0 },
+        : { curated: 0, needs_review: 0, local: 0, global: 0 },
     [ruleCollections],
   );
   const selectedRule = useMemo(
-    () => ((ruleCollections ? [...ruleCollections.curated, ...ruleCollections.drafts, ...ruleCollections.local, ...ruleCollections.global] : []).find((rule) => String(rule.name) === selectedRuleName) as Record<string, unknown> | undefined) ?? null,
+    () => ((ruleCollections ? [...ruleCollections.curated, ...ruleCollections.needs_review, ...ruleCollections.local, ...ruleCollections.global] : []).find((rule) => String(rule.name) === selectedRuleName) as Record<string, unknown> | undefined) ?? null,
     [ruleCollections, selectedRuleName],
   );
   const selectedCandidate = useMemo(
@@ -305,17 +298,17 @@ export function App() {
 
     items.push({
       key: "rules",
-      priority: curatedCount === 0 || ruleCounts.drafts > 0 ? "Soon" : "Later",
+      priority: curatedCount === 0 || ruleCounts.needs_review > 0 ? "Soon" : "Later",
       title: curatedCount === 0 ? "Curate your first stable rule" : "Keep rules tidy",
       description:
         curatedCount === 0
           ? "There is no curated rule yet, so promote the highest-signal guidance into the stable set."
-          : ruleCounts.drafts > 0
-            ? `${ruleCounts.drafts} draft rule(s) still need curation before they are reliable.`
+          : ruleCounts.needs_review > 0
+            ? `${ruleCounts.needs_review} rule(s) still need review before they are trusted.`
             : `${curatedCount} curated rule(s) are available for reuse.`,
       ctaLabel: "Open rules",
       ctaPage: "rules",
-      tone: curatedCount === 0 || ruleCounts.drafts > 0 ? "warning" : "success",
+      tone: curatedCount === 0 || ruleCounts.needs_review > 0 ? "warning" : "success",
     });
 
     items.push({
@@ -333,7 +326,7 @@ export function App() {
 
     const order = { Now: 0, Soon: 1, Later: 2 };
     return items.sort((a, b) => order[a.priority] - order[b.priority]);
-  }, [curatedCount, ruleCounts.drafts, summary]);
+  }, [curatedCount, ruleCounts.needs_review, summary]);
   const onboardingSteps = [
     {
       title: "1. Capture",
@@ -362,15 +355,35 @@ export function App() {
             : "No candidate backlog is waiting for operator review.",
       },
       {
+        key: "automation-rate",
+        label: "Automation Rate",
+        value: `${summary.overview.automation_rate}%`,
+        tone: summary.overview.automation_rate >= 80 ? ("success" as const) : summary.overview.automation_rate >= 50 ? ("neutral" as const) : ("warning" as const),
+        description:
+          summary.overview.auto_resolved_actions > 0
+            ? `${summary.overview.auto_resolved_actions} recent history action(s) were auto-resolved without manual review.`
+            : "No recent auto-resolved history actions have been recorded yet.",
+      },
+      {
+        key: "recent-auto-trend",
+        label: `Recent Auto (${summary.overview.recent_window})`,
+        value: `${summary.overview.recent_auto_rate}%`,
+        tone: summary.overview.recent_auto_rate >= summary.overview.automation_rate ? ("success" as const) : ("warning" as const),
+        description:
+          summary.overview.recent_auto_resolved_actions > 0
+            ? `${summary.overview.recent_auto_resolved_actions} of the last ${summary.overview.recent_window} history entries were auto-resolved.`
+            : `No auto-resolved actions were recorded in the last ${summary.overview.recent_window} history entries.`,
+      },
+      {
         key: "rule-health",
         label: "Rule Health",
-        value: curatedCount === 0 ? "Needs curation" : ruleCounts.drafts > 0 ? `${curatedCount} stable / ${ruleCounts.drafts} draft` : `${curatedCount} stable`,
-        tone: curatedCount === 0 || ruleCounts.drafts > 0 ? ("warning" as const) : ("success" as const),
+        value: curatedCount === 0 ? "Needs curation" : ruleCounts.needs_review > 0 ? `${curatedCount} stable / ${ruleCounts.needs_review} review` : `${curatedCount} stable`,
+        tone: curatedCount === 0 || ruleCounts.needs_review > 0 ? ("warning" as const) : ("success" as const),
         description:
           curatedCount === 0
             ? "Reusable guidance is not stabilized yet."
-            : ruleCounts.drafts > 0
-              ? "Stable rules exist, but drafts still need curation."
+            : ruleCounts.needs_review > 0
+              ? "Stable rules exist, but some rules still need review."
               : "Reusable guidance is in a healthy curated state.",
       },
       {
@@ -383,8 +396,28 @@ export function App() {
             ? "Recent changes are traceable through the audit timeline."
             : "Audit visibility will improve once review and promotion events accumulate.",
       },
+      {
+        key: "exception-rate",
+        label: "Exception Rate",
+        value: `${summary.overview.exception_rate}%`,
+        tone: summary.overview.pending_review_candidates > 0 ? ("warning" as const) : ("success" as const),
+        description:
+          summary.overview.pending_review_candidates > 0
+            ? `${summary.overview.pending_review_candidates} candidate(s) are still waiting for review instead of auto-resolving.`
+            : "The active candidate queue is fully auto-resolved right now.",
+      },
+      {
+        key: "recent-exception-trend",
+        label: `Recent Exceptions (${summary.overview.recent_window})`,
+        value: `${summary.overview.recent_exception_rate}%`,
+        tone: summary.overview.recent_pending_review_candidates > 0 ? ("warning" as const) : ("success" as const),
+        description:
+          summary.overview.recent_pending_review_candidates > 0
+            ? `${summary.overview.recent_pending_review_candidates} of the most recent candidates still need review.`
+            : `The most recent ${summary.overview.recent_window} candidate slots are fully auto-resolved right now.`,
+      },
     ];
-  }, [curatedCount, ruleCounts.drafts, summary]);
+  }, [curatedCount, ruleCounts.needs_review, summary]);
   const isQuietWorkspace =
     !!summary &&
     summary.overview.candidates === 0 &&
@@ -485,6 +518,10 @@ export function App() {
                     { label: "Curated Rules", value: curatedCount },
                     { label: "Pending Candidates", value: summary.overview.candidates },
                     { label: "Global History", value: summary.overview.global_history_entries },
+                    { label: "Automation Rate", value: `${summary.overview.automation_rate}%` },
+                    { label: "Exception Rate", value: `${summary.overview.exception_rate}%` },
+                    { label: `Recent Auto (${summary.overview.recent_window})`, value: `${summary.overview.recent_auto_rate}%` },
+                    { label: `Recent Exceptions (${summary.overview.recent_window})`, value: `${summary.overview.recent_exception_rate}%` },
                   ]}
                 />
               </div>
@@ -610,6 +647,13 @@ export function App() {
                   </div>
                 </section>
                 <section style={{ display: "grid", gap: 12, paddingTop: 18, borderTop: `1px solid ${palette.line}` }}>
+                  <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>Exception patterns</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
+                    <CountList title="Rule Exception Reasons" data={summary.exception_summary.rule_reasons} />
+                    <CountList title="Candidate Exception Reasons" data={summary.exception_summary.candidate_reasons} />
+                  </div>
+                </section>
+                <section style={{ display: "grid", gap: 12, paddingTop: 18, borderTop: `1px solid ${palette.line}` }}>
                   <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>How this dashboard works</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
                     {onboardingSteps.map((step) => (
@@ -634,6 +678,9 @@ export function App() {
                   </div>
                   <div style={{ color: palette.textMuted, lineHeight: 1.65 }}>
                     Candidate queues are ordered by review urgency first. Rules surfaces prioritize curated guidance and unfinished review work before lower-signal leftovers.
+                  </div>
+                  <div style={{ color: palette.textMuted, lineHeight: 1.65 }}>
+                    When something remains in Needs Review, open the detail view first. The dashboard now surfaces the unresolved reason, decision type, and provenance so exception handling is easier to judge.
                   </div>
                   <div style={{ color: palette.textMuted, lineHeight: 1.65 }}>
                     Dashboard is for viewing and managing learned guidance. Capture and activation still happen through your adapter install/bootstrap flow.

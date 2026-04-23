@@ -58,11 +58,10 @@ def main() -> int:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     learning_root = cwd / ".agent-learner" / "learning"
     inbox = learning_root / "inbox"
-    drafts = learning_root / "drafts"
     approved = learning_root / "approved"
     needs_review = learning_root / "needs_review"
     deprecated = learning_root / "deprecated"
-    for path in (inbox, drafts, approved, needs_review, deprecated):
+    for path in (inbox, approved, needs_review, deprecated):
         path.mkdir(parents=True, exist_ok=True)
 
     emit_shared_event(cwd, payload, session_id)
@@ -72,17 +71,12 @@ def main() -> int:
         f"# Session Learning Candidate\\n\\n- captured_at: {ts}\\n- session_id: {session_id}\\n",
         encoding="utf-8",
     )
-    (drafts / f"learned-rule-draft-{slug}.md").write_text(
-        f"# Learned Rule Drafts\\n\\n- captured_at: {ts}\\n- session_id: {session_id}\\n",
-        encoding="utf-8",
-    )
     dashboard = learning_root / "dashboard.md"
     dashboard.write_text(
         "# Learning Assets Dashboard\\n\\n"
         f"- approved: {len(list(approved.glob('*.md')))}\\n"
         f"- needs_review: {len(list(needs_review.glob('*.md')))}\\n"
         f"- deprecated: {len(list(deprecated.glob('*.md')))}\\n"
-        f"- drafts: {len(list(drafts.glob('*.md')))}\\n"
         f"- inbox: {len(list(inbox.glob('*.md')))}\\n",
         encoding="utf-8",
     )
@@ -162,7 +156,7 @@ description: Wrap up a coding session by preserving durable decisions, follow-up
 
 # Session Wrap
 
-1. Read the newest files in `.agent-learner/learning/inbox/`, `.agent-learner/learning/drafts/`, and `.agent-learner/history/promotions.jsonl`.
+1. Read the newest files in `.agent-learner/learning/inbox/`, `.agent-learner/learning/needs_review/`, and `.agent-learner/history/promotions.jsonl`.
 2. Extract durable rules, unfinished work, and next actions.
 3. Save enduring rules to AGENTS, references, or canonical learning assets as appropriate.
 """
@@ -175,8 +169,8 @@ description: Capture repeated user corrections and durable working preferences a
 
 # Feedback Learning
 
-1. Read the newest draft files in `.agent-learner/learning/drafts/`.
-2. Decide whether each rule should stay draft, become approved, or move elsewhere.
+1. Read the newest exception rules in `.agent-learner/learning/needs_review/`.
+2. Decide whether each rule should become approved, remain needs_review, or be deprecated.
 3. Prefer short reusable rules over narrative logs.
 """
 
@@ -197,7 +191,6 @@ LEARNING_README = """# Learned Feedback and Learning Assets
 This directory holds canonical learning assets for this repo.
 
 - inbox/
-- drafts/
 - approved/
 - needs_review/
 - deprecated/
@@ -217,7 +210,6 @@ and `.agent-learner/state/` to avoid reprocessing the same session artifact.
 
 ROOT_GITIGNORE_LINES = [
     ".agent-learner/learning/inbox/",
-    ".agent-learner/learning/drafts/",
     ".agent-learner/history/",
     ".agent-learner/events/",
     ".agent-learner/candidates/",
@@ -229,7 +221,7 @@ def install_codex_adapter(target_root: Path) -> list[Path]:
     written: list[Path] = []
     codex_root = ensure_dir(target_root / ".codex")
     learning_root = ensure_dir(target_root / ".agent-learner" / "learning")
-    for child in ("inbox", "drafts", "approved", "needs_review", "deprecated"):
+    for child in ("inbox", "approved", "needs_review", "deprecated"):
         ensure_dir(learning_root / child)
     ensure_dir(target_root / ".agent-learner" / "events" / "codex")
     ensure_dir(target_root / ".agent-learner" / "history")

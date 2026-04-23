@@ -24,7 +24,7 @@ TEXT_VALUE_KEYS = {
     "instruction",
     "content",
 }
-COMPARISON_STATUSES = ["approved", "needs_review", "draft"]
+COMPARISON_STATUSES = ["approved", "needs_review"]
 GENERIC_REJECTION_TERMS = {"careful", "quality", "best", "good", "clean", "properly", "appropriate"}
 NEGATION_TERMS = {"never", "not", "avoid", "except", "unless", "dont", "no"}
 STOPWORDS = {"a", "an", "and", "be", "for", "the", "to", "with", "when", "whenever", "always"}
@@ -198,6 +198,7 @@ def mark_processed(project_root: Path, event_path: Path, processor: str = "extra
 def process_unprocessed_events(project_root: Path, adapter: str | None = None, limit: int | None = None) -> list[ProcessedEventResult]:
     results: list[ProcessedEventResult] = []
     lifecycle = LearningLifecycle(resolve_learning_root(project_root))
+    lifecycle.cleanup_drafts()
     for event_path in list_event_paths(project_root, adapter=adapter):
         if limit is not None and len(results) >= limit:
             break
@@ -220,8 +221,10 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
             candidate_path = write_candidate(project_root, candidate)
             ledger_path = append_candidate_decision_entry(project_root, candidate, comparison)
             if comparison.decision == "refresh_existing" and comparison.matched_rule:
+                existing_rule = lifecycle.load_rule(comparison.matched_rule)
                 refreshed_path = lifecycle.refresh(
                     comparison.matched_rule,
+                    status_override="approved" if existing_rule.status == "needs_review" else None,
                     source_event=candidate.source_event_path,
                     source_adapter=candidate.adapter,
                     derived_from_candidate=f"candidate-{slugify(candidate.title)}.md",
@@ -229,21 +232,29 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
                     evidence_excerpt=candidate.evidence_excerpt,
                 )
                 rule_path = refreshed_path
-                status = "rule_refreshed"
+                status = "rule_reapproved" if existing_rule.status == "needs_review" else "rule_refreshed"
                 comparison.matched_rule = refreshed_path.stem
                 comparison.review_required = False
                 candidate.matched_rule = refreshed_path.stem
-                update_candidate_status(candidate_path, "auto_applied", matched_rule=refreshed_path.stem)
+                update_candidate_status(
+                    candidate_path,
+                    "auto_applied",
+                    matched_rule=refreshed_path.stem,
+                    review_required=False,
+                    confidence=comparison.confidence,
+                )
             elif comparison.decision == "reject_candidate":
                 status = "candidate_rejected"
-                update_candidate_status(candidate_path, "rejected_candidate")
+                update_candidate_status(candidate_path, "rejected_candidate", review_required=False, confidence=comparison.confidence)
             elif comparison.decision == "revise_existing" and comparison.matched_rule:
+                existing_rule = lifecycle.load_rule(comparison.matched_rule)
                 revised_path = lifecycle.revise(
                     comparison.matched_rule,
                     rule_text=candidate.suggested_rule,
                     summary=candidate.summary,
                     scope=candidate.scope,
                     why=comparison.reason,
+                    status_override="approved" if existing_rule.status == "needs_review" else None,
                     source_event=candidate.source_event_path,
                     source_adapter=candidate.adapter,
                     derived_from_candidate=f"candidate-{slugify(candidate.title)}.md",
@@ -251,12 +262,18 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
                     evidence_excerpt=candidate.evidence_excerpt,
                 )
                 rule_path = revised_path
-                status = "rule_revised"
+                status = "rule_reapproved" if existing_rule.status == "needs_review" else "rule_revised"
                 comparison.matched_rule = revised_path.stem
                 candidate.review_required = False
                 comparison.review_required = False
                 candidate.matched_rule = revised_path.stem
-                update_candidate_status(candidate_path, "auto_applied", matched_rule=revised_path.stem)
+                update_candidate_status(
+                    candidate_path,
+                    "auto_applied",
+                    matched_rule=revised_path.stem,
+                    review_required=False,
+                    confidence=comparison.confidence,
+                )
             elif comparison.decision in {"new_rule", "fork_rule"}:
                 promoted_path = auto_promote_candidate_as_rule(project_root, lifecycle, candidate, comparison, candidate_path)
                 rule_path = promoted_path
@@ -265,7 +282,13 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
                 candidate.review_required = False
                 comparison.review_required = False
                 candidate.matched_rule = promoted_path.stem
-                update_candidate_status(candidate_path, "auto_applied", matched_rule=promoted_path.stem)
+                update_candidate_status(
+                    candidate_path,
+                    "auto_applied",
+                    matched_rule=promoted_path.stem,
+                    review_required=False,
+                    confidence=comparison.confidence,
+                )
             else:
                 status = "candidate_written"
         else:
@@ -318,13 +341,24 @@ def write_candidate(project_root: Path, candidate: LearningCandidate) -> Path:
     return save_candidate_record(CandidateRecord(path=target, candidate=candidate))
 
 
-def update_candidate_status(path: Path | None, status: str, *, matched_rule: str | None = None) -> Path | None:
+def update_candidate_status(
+    path: Path | None,
+    status: str,
+    *,
+    matched_rule: str | None = None,
+    review_required: bool | None = None,
+    confidence: str | None = None,
+) -> Path | None:
     if path is None or not path.exists():
         return path
     record = load_candidate_record(path)
     record.status = status
     if matched_rule:
         record.candidate.matched_rule = matched_rule
+    if review_required is not None:
+        record.candidate.review_required = review_required
+    if confidence is not None:
+        record.candidate.confidence = confidence
     return save_candidate_record(record)
 
 
@@ -358,24 +392,30 @@ def compare_candidate_to_existing_rule(lifecycle: LearningLifecycle, candidate: 
             best_similarity = similarity
 
     if best_rule is None:
+        strong_new_rule = candidate_is_strong_new_rule(candidate)
         return CandidateComparison(
             decision="new_rule",
             matched_rule=None,
-            confidence="medium",
-            reason="no existing rule had a meaningful semantic match",
-            review_required=True,
+            confidence="high" if strong_new_rule else "medium",
+            reason="no existing rule had a meaningful semantic match and the candidate is specific enough to auto-approve"
+            if strong_new_rule
+            else "no existing rule had a meaningful semantic match",
+            review_required=not strong_new_rule,
             field_diffs={},
             similarity=0.0,
         )
 
     diffs = describe_field_diffs(candidate, best_rule)
     conflict = has_negation_conflict(candidate.suggested_rule, best_rule.rule)
+    resolves_needs_review = best_rule.status == "needs_review" and (best_exact or best_similarity >= 0.55) and not conflict
     if (best_exact or best_similarity >= 0.82) and not conflict and diffs["rule"] == "unchanged" and diffs["scope"] == "unchanged":
         return CandidateComparison(
             decision="refresh_existing",
             matched_rule=best_rule.name,
             confidence="high",
-            reason="same imperative meaning with unchanged scope and fresher evidence",
+            reason="same imperative meaning with unchanged scope and fresher evidence"
+            if best_rule.status != "needs_review"
+            else "needs_review rule confirmed by matching evidence and can return to approved",
             review_required=False,
             field_diffs=diffs,
             similarity=best_similarity,
@@ -384,19 +424,24 @@ def compare_candidate_to_existing_rule(lifecycle: LearningLifecycle, candidate: 
         return CandidateComparison(
             decision="revise_existing",
             matched_rule=best_rule.name,
-            confidence="medium",
-            reason="same conceptual rule but durable wording should change materially",
-            review_required=True,
+            confidence="high" if resolves_needs_review else "medium",
+            reason="needs_review rule clarified by stronger evidence and can return to approved"
+            if resolves_needs_review
+            else "same conceptual rule but durable wording should change materially",
+            review_required=not resolves_needs_review,
             field_diffs=diffs,
             similarity=best_similarity,
         )
     if best_similarity >= 0.45:
+        strong_fork_rule = candidate_is_strong_fork_rule(candidate, best_rule, diffs, best_similarity, conflict)
         return CandidateComparison(
             decision="fork_rule",
             matched_rule=best_rule.name,
-            confidence="medium",
-            reason="related topic overlaps with an existing rule but safe merge is not possible",
-            review_required=True,
+            confidence="high" if strong_fork_rule else "medium",
+            reason="related topic overlaps with an existing rule but the conflict is clear enough to auto-fork safely"
+            if strong_fork_rule
+            else "related topic overlaps with an existing rule but safe merge is not possible",
+            review_required=not strong_fork_rule,
             field_diffs=diffs,
             similarity=best_similarity,
         )
@@ -619,6 +664,40 @@ def should_reject_candidate(candidate: LearningCandidate) -> bool:
     tokens = tokenize_for_compare(candidate.suggested_rule)
     useful = [token for token in tokens if token not in GENERIC_REJECTION_TERMS and token not in STOPWORDS]
     return len(useful) < 2
+
+
+def candidate_specificity_score(candidate: LearningCandidate) -> int:
+    useful = [token for token in tokenize_for_compare(candidate.suggested_rule) if token not in GENERIC_REJECTION_TERMS and token not in STOPWORDS]
+    scope_tokens = tokenize_for_compare(candidate.scope)
+    evidence_tokens = tokenize_for_compare(candidate.evidence_excerpt)
+    score = len(set(useful))
+    if len(scope_tokens) >= 3:
+        score += 2
+    if len(evidence_tokens) >= 6:
+        score += 2
+    if candidate.summary and len(candidate.summary.split()) >= 5:
+        score += 1
+    return score
+
+
+def candidate_is_strong_new_rule(candidate: LearningCandidate) -> bool:
+    return candidate_specificity_score(candidate) >= 7
+
+
+def candidate_is_strong_fork_rule(
+    candidate: LearningCandidate,
+    rule: LearningRule,
+    diffs: dict[str, str],
+    similarity: float,
+    conflict: bool,
+) -> bool:
+    if not conflict:
+        return False
+    if similarity < 0.45:
+        return False
+    if diffs.get("scope") not in {"unchanged", "broadened", "narrowed"}:
+        return False
+    return candidate_specificity_score(candidate) >= 7 and len(tokenize_for_compare(rule.rule)) >= 3
 
 
 def canonical_rule_slug(candidate: LearningCandidate) -> str:

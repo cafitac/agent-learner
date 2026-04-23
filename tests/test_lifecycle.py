@@ -47,6 +47,23 @@ def test_save_and_load_rule_round_trip(tmp_path: Path) -> None:
     assert loaded.status == "draft"
 
 
+def test_cleanup_drafts_removes_placeholder_and_migrates_real_draft(tmp_path: Path) -> None:
+    lifecycle = LearningLifecycle(tmp_path)
+    placeholder = tmp_path / "drafts" / "learned-rule-draft-placeholder.md"
+    placeholder.write_text("# Learned Rule Drafts\n\n- captured_at: 2026-04-23 00:00:00\n- session_id: abc\n", encoding="utf-8")
+
+    substantive = make_rule("substantive-draft")
+    lifecycle.save_draft(substantive)
+
+    changes = lifecycle.cleanup_drafts()
+
+    assert any(change["action"] == "deleted_placeholder" for change in changes)
+    assert any(change["action"] == "migrated_to_needs_review" and change["name"] == "substantive-draft" for change in changes)
+    assert not placeholder.exists()
+    assert not (tmp_path / "drafts" / "substantive-draft.md").exists()
+    assert (tmp_path / "needs_review" / "substantive-draft.md").exists()
+
+
 def test_rule_transitions_move_single_copy_between_statuses(tmp_path: Path) -> None:
     lifecycle = LearningLifecycle(tmp_path)
     rule = make_rule("single-source-rule")
@@ -83,6 +100,20 @@ def test_validate_exclude_and_sweep_rule_lifecycle(tmp_path: Path) -> None:
     needs_review_path.write_text(content, encoding="utf-8")
     changes = lifecycle.sweep_rules(current_model="claude-opus-4-7", needs_review_days=1)
     assert any(change["to"] == "deprecated" for change in changes)
+
+
+def test_sweep_rules_auto_reapproves_needs_review_when_current_model_is_already_safe(tmp_path: Path) -> None:
+    lifecycle = LearningLifecycle(tmp_path)
+    rule = make_rule("reapprove-on-sweep")
+    rule.model_dependency = "low"
+    rule.validated_on_models = ["claude-sonnet-4-6"]
+    lifecycle.mark_needs_review(rule)
+
+    changes = lifecycle.sweep_rules(current_model="claude-sonnet-4-7")
+
+    assert any(change["name"] == "reapprove-on-sweep" and change["to"] == "approved" for change in changes)
+    reapproved = lifecycle.load_rule("reapprove-on-sweep")
+    assert reapproved.status == "approved"
 
 
 def test_touch_rule_updates_use_tracking(tmp_path: Path) -> None:

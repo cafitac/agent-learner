@@ -17,6 +17,12 @@ def build_dashboard_summary(project_root: Path) -> dict[str, object]:
     context = detect_context(project_root)
     local_root = resolve_learning_root(project_root)
     global_root = global_learning_root()
+    local_lifecycle = LearningLifecycle(local_root)
+    global_lifecycle = LearningLifecycle(global_root)
+    local_lifecycle.cleanup_drafts()
+    global_lifecycle.cleanup_drafts()
+    local_lifecycle.sweep_rules(current_model=context.current_model)
+    global_lifecycle.sweep_rules(current_model=context.current_model)
 
     local_rules = collect_rules(local_root)
     global_rules = collect_rules(global_root)
@@ -49,11 +55,17 @@ def build_dashboard_summary(project_root: Path) -> dict[str, object]:
             "local_history_entries": len(local_history),
             "global_history_entries": len(global_history),
             "latest_activity": combined_history[0]["ts"] if combined_history else "",
+            **automation_metrics(combined_history, candidates),
+            **automation_trends(combined_history, candidates),
         },
         "history_summary": {
             "by_action": count_by(combined_history, "action"),
             "by_adapter": count_by(combined_history, "source_adapter"),
             "by_decision": count_by(combined_history, "decision"),
+        },
+        "exception_summary": {
+            "rule_reasons": summarize_rule_exceptions(local_rules, global_rules),
+            "candidate_reasons": summarize_candidate_exceptions(candidates),
         },
         "local": {
             "status_counts": count_by(local_rules, "status"),
@@ -180,6 +192,89 @@ def attach_scope(entries: list[dict[str, object]], scope: str) -> list[dict[str,
 def count_by(records: list[dict[str, object]], field: str) -> dict[str, int]:
     counter = Counter(str(record.get(field) or "(empty)") for record in records)
     return dict(sorted(counter.items(), key=lambda item: (-item[1], item[0])))
+
+
+def automation_metrics(history: list[dict[str, object]], candidates: list[dict[str, object]]) -> dict[str, object]:
+    total_actions = len(history)
+    auto_actions = sum(
+        1
+        for item in history
+        if str(item.get("action") or "") in {"promote", "refresh", "revise"}
+    )
+    pending_candidates = sum(
+        1
+        for item in candidates
+        if str(item.get("status") or "") in {"draft_candidate", "needs_review_candidate"}
+    )
+    auto_rate = round((auto_actions / total_actions) * 100, 1) if total_actions else 0.0
+    exception_rate = round((pending_candidates / max(len(candidates), 1)) * 100, 1) if candidates else 0.0
+    return {
+        "automation_rate": auto_rate,
+        "exception_rate": exception_rate,
+        "auto_resolved_actions": auto_actions,
+        "pending_review_candidates": pending_candidates,
+    }
+
+
+def automation_trends(history: list[dict[str, object]], candidates: list[dict[str, object]], *, recent_limit: int = 10) -> dict[str, object]:
+    recent_history = history[:recent_limit]
+    recent_total = len(recent_history)
+    recent_auto = sum(
+        1
+        for item in recent_history
+        if str(item.get("action") or "") in {"promote", "refresh", "revise"}
+    )
+    recent_auto_rate = round((recent_auto / recent_total) * 100, 1) if recent_total else 0.0
+    recent_pending = sum(
+        1
+        for item in candidates[:recent_limit]
+        if str(item.get("status") or "") in {"draft_candidate", "needs_review_candidate"}
+    )
+    recent_exception_rate = round((recent_pending / max(len(candidates[:recent_limit]), 1)) * 100, 1) if candidates[:recent_limit] else 0.0
+    return {
+        "recent_window": recent_limit,
+        "recent_auto_rate": recent_auto_rate,
+        "recent_exception_rate": recent_exception_rate,
+        "recent_auto_resolved_actions": recent_auto,
+        "recent_pending_review_candidates": recent_pending,
+    }
+
+
+def summarize_rule_exceptions(local_rules: list[dict[str, object]], global_rules: list[dict[str, object]]) -> dict[str, int]:
+    rules = [rule for rule in [*local_rules, *global_rules] if str(rule.get("status") or "") == "needs_review"]
+    reasons = [categorize_exception_reason(str(rule.get("decision_reason") or rule.get("why") or "")) for rule in rules]
+    return dict(sorted(Counter(reasons).items(), key=lambda item: (-item[1], item[0])))
+
+
+def summarize_candidate_exceptions(candidates: list[dict[str, object]]) -> dict[str, int]:
+    unresolved = [candidate for candidate in candidates if str(candidate.get("status") or "").startswith("needs_review")]
+    reasons = [categorize_exception_reason(str(candidate.get("decision_reason") or "")) for candidate in unresolved]
+    return dict(sorted(Counter(reasons).items(), key=lambda item: (-item[1], item[0])))
+
+
+def categorize_exception_reason(reason: str) -> str:
+    normalized = (reason or "").lower()
+    if not normalized.strip():
+        return "other"
+    if "model" in normalized:
+        return "model-policy"
+    if "conflict" in normalized or "negation" in normalized:
+        return "conflict"
+    if "fork" in normalized or "overlap" in normalized:
+        return "overlap"
+    if "revise" in normalized or "wording" in normalized or "materially" in normalized:
+        return "wording-change"
+    if "generic" in normalized or "too generic" in normalized:
+        return "low-signal"
+    if "scope" in normalized:
+        return "scope-ambiguity"
+    if "evidence" in normalized or "fresher evidence" in normalized:
+        return "evidence"
+    if "same conceptual rule" in normalized:
+        return "wording-change"
+    if "safe merge" in normalized:
+        return "overlap"
+    return "other"
 
 
 def write_dashboard_files(project_root: Path) -> tuple[Path, Path]:

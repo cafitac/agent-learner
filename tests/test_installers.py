@@ -45,7 +45,6 @@ def test_codex_install_adds_gitignore_lines(tmp_path: Path) -> None:
     install_codex_adapter(tmp_path)
     content = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert ".agent-learner/learning/inbox/" in content
-    assert ".agent-learner/learning/drafts/" in content
     assert ".agent-learner/history/" in content
     assert ".agent-learner/events/" in content
     assert ".agent-learner/candidates/" in content

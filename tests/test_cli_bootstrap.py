@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
-from agent_learner.core.dashboard import merge_rules
+from agent_learner.core.dashboard import build_dashboard_summary, merge_rules
 from agent_learner.core.fastapi_app import app_root_dir, frontend_dist_dir, frontend_src_dir, frontend_dist_is_valid
 from agent_learner.cli.main import main as cli_main
 from agent_learner.core.lifecycle import LearningLifecycle
@@ -518,6 +518,13 @@ def test_fastapi_frontend_scaffold_paths() -> None:
     assert "Review pending candidates first" in app_source
     assert "Action queue" in app_source
     assert "Health summary" in app_source
+    assert "Exception patterns" in app_source
+    assert "Automation Rate" in app_source
+    assert "Exception Rate" in app_source
+    assert "Recent Auto (" in app_source
+    assert "Recent Exceptions (" in app_source
+    assert "Rule Exception Reasons" in app_source
+    assert "Candidate Exception Reasons" in app_source
     assert "Review Load" in app_source
     assert "Rule Health" in app_source
     assert "Audit Coverage" in app_source
@@ -526,6 +533,7 @@ def test_fastapi_frontend_scaffold_paths() -> None:
     assert "Operator notes" in app_source
     assert "Keep rules tidy" in app_source
     assert "Candidate queues are ordered by review urgency first" in app_source
+    assert "The dashboard now surfaces the unresolved reason, decision type, and provenance" in app_source
     assert "How this dashboard works" in app_source
     assert "Dashboard is for viewing and managing learned guidance" in app_source
     assert "applyFocusRing" in app_source
@@ -547,6 +555,11 @@ def test_fastapi_frontend_scaffold_paths() -> None:
     assert "useFocusRing" in components_source
     assert "Sorted by review urgency, then confidence, then title." in components_source
     assert "Sorted for quick reuse: strongest curated guidance first." in components_source
+    assert "Needs Review" in components_source
+    assert "No rules need review" in components_source
+    assert "Open each item to see the unresolved reason and provenance before intervening." in components_source
+    assert "Why this still needs review" in components_source
+    assert "Open details to see why an item stayed in review instead of auto-applying." in components_source
     assert "No curated rules yet" in components_source
     assert "If this stays empty in a fresh workspace" in components_source
     assert "Fresh workspaces often stay empty here" in components_source
@@ -693,6 +706,135 @@ def test_merge_rules_prefers_complete_approved_rule_over_empty_local_draft() -> 
     )
     assert merged[0]["status"] == "approved"
     assert merged[0]["summary"] == "Reusable global rule."
+
+
+def test_dashboard_summary_auto_reapproves_needs_review_rule_for_current_model(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    state_dir = tmp_path / ".agent-learner" / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "current-model.txt").write_text("claude-sonnet-4-7\n", encoding="utf-8")
+
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    rule = LearningRule(
+        name="auto-reapproved",
+        rule="Keep tests updated.",
+        why="Verification should stay aligned with changes.",
+        scope="core",
+        good_pattern="Update tests with code.",
+        avoid_pattern="Leave tests stale.",
+        summary="Keep tests updated.",
+        validated_on_models=["claude-sonnet-4-6"],
+        model_dependency="low",
+    )
+    lifecycle.mark_needs_review(rule)
+
+    summary = build_dashboard_summary(tmp_path)
+    names = {item["name"]: item["status"] for item in summary["local"]["rules"]}
+    assert names["auto-reapproved"] == "approved"
+
+
+def test_dashboard_summary_categorizes_exception_reasons(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    rule = LearningRule(
+        name="review-rule",
+        rule="Update tests whenever behavior changes.",
+        why="same conceptual rule but durable wording should change materially",
+        scope="core",
+        good_pattern="Update tests with code.",
+        avoid_pattern="Leave tests stale.",
+        summary="Update tests whenever behavior changes.",
+        status="needs_review",
+    )
+    lifecycle.mark_needs_review(rule)
+
+    candidates_dir = tmp_path / ".agent-learner" / "candidates" / "codex"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    candidate_path = candidates_dir / "candidate-conflict.md"
+    candidate_path.write_text(
+        "---\n"
+        "adapter: codex\n"
+        "captured_at: 2026-04-23T00:00:00Z\n"
+        "source_event_path: events/codex/stop.json\n"
+        "transcript_path: \n"
+        "status: needs_review_candidate\n"
+        "decision: fork_rule\n"
+        'decision_reason: "related topic overlaps with an existing rule but safe merge is not possible"\n'
+        "matched_rule: retry-network-failures\n"
+        "review_required: true\n"
+        "confidence: medium\n"
+        "field_diffs: {}\n"
+        "---\n\n"
+        "# conflict\n\n"
+        "## Suggested rule\n"
+        "Always retry network failures when the request budget allows it.\n\n"
+        "## Summary\n"
+        "Retry network failures when budget allows it.\n\n"
+        "## Scope\n"
+        "codex adapter event:stop\n\n"
+        "## Evidence\n"
+        "Always retry network failures when the request budget allows it.\n",
+        encoding="utf-8",
+    )
+
+    summary = build_dashboard_summary(tmp_path)
+    assert summary["exception_summary"]["rule_reasons"]["wording-change"] == 1
+    assert summary["exception_summary"]["candidate_reasons"]["overlap"] == 1
+
+
+def test_dashboard_summary_reports_automation_metrics(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(
+        "\n".join(
+            [
+                json.dumps({"ts": "2026-04-23T00:00:00Z", "action": "promote", "rule": "r1"}),
+                json.dumps({"ts": "2026-04-23T00:01:00Z", "action": "refresh", "rule": "r1"}),
+                json.dumps({"ts": "2026-04-23T00:02:00Z", "action": "candidate_created", "rule": "r2"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    candidates_dir = tmp_path / ".agent-learner" / "candidates" / "codex"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    (candidates_dir / "candidate-review.md").write_text(
+        "---\n"
+        "adapter: codex\n"
+        "captured_at: 2026-04-23T00:00:00Z\n"
+        "source_event_path: events/codex/stop.json\n"
+        "transcript_path: \n"
+        "status: needs_review_candidate\n"
+        "decision: revise_existing\n"
+        'decision_reason: "same conceptual rule but durable wording should change materially"\n'
+        "matched_rule: existing-rule\n"
+        "review_required: true\n"
+        "confidence: medium\n"
+        "field_diffs: {}\n"
+        "---\n\n"
+        "# review\n\n"
+        "## Suggested rule\n"
+        "Update tests when behavior changes.\n\n"
+        "## Summary\n"
+        "Update tests when behavior changes.\n\n"
+        "## Scope\n"
+        "codex adapter event:stop\n\n"
+        "## Evidence\n"
+        "Update tests when behavior changes.\n",
+        encoding="utf-8",
+    )
+
+    summary = build_dashboard_summary(tmp_path)
+    assert summary["overview"]["automation_rate"] == 33.3
+    assert summary["overview"]["exception_rate"] == 100.0
+    assert summary["overview"]["auto_resolved_actions"] == 2
+    assert summary["overview"]["pending_review_candidates"] == 1
+    assert summary["overview"]["recent_window"] == 10
+    assert summary["overview"]["recent_auto_rate"] == 33.3
+    assert summary["overview"]["recent_exception_rate"] == 100.0
+    assert summary["overview"]["recent_auto_resolved_actions"] == 2
+    assert summary["overview"]["recent_pending_review_candidates"] == 1
 
 
 def test_qa_claude_smoke_creates_event_and_candidate(monkeypatch, capsys) -> None:

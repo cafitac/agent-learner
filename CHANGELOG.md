@@ -6,6 +6,21 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-04-23
+
+### Changed
+- Learning automation now treats `needs_review` as a true exception queue, with stronger auto-resolution for clear refresh, revise, new-rule, and fork-rule cases instead of routing so many medium-confidence decisions to manual review.
+- Draft placeholder generation was removed from the active Codex automation path, and legacy placeholder drafts are now cleaned up or migrated into `needs_review` automatically.
+- The dashboard now focuses on approved guidance and exception handling rather than draft curation, with clearer `Needs Review` messaging and stronger explanations for unresolved items.
+
+### Added
+- Overview now reports automation KPIs such as automation rate, exception rate, recent-window automation trends, and categorized exception patterns so the learner can be monitored as an autonomous system.
+- Rule and candidate detail views now surface unresolved-review reasons more explicitly so the rare manual intervention path is easier to judge.
+
+### Fixed
+- `needs_review` rules can now auto-return to `approved` when later evidence or model validation makes the resolution safe again, reducing stale exception buildup.
+- Candidate records now stay in sync with automation outcomes by updating confidence and review flags when items auto-apply.
+
 ## [0.3.12] - 2026-04-23
 
 ### Changed

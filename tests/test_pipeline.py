@@ -8,6 +8,7 @@ from agent_learner.core.pipeline import (
     extract_candidate_from_event,
     is_processed,
     load_learning_event,
+    load_candidate_record,
     process_unprocessed_events,
 )
 
@@ -53,6 +54,10 @@ def test_process_events_extracts_candidate_from_transcript_and_marks_processed(t
     assert candidate_path.exists()
     content = candidate_path.read_text(encoding="utf-8")
     assert "Always keep learned rules short and reusable." in content
+    candidate_record = load_candidate_record(candidate_path)
+    assert candidate_record.status == "auto_applied"
+    assert candidate_record.candidate.review_required is False
+    assert candidate_record.candidate.confidence == "high"
     assert is_processed(tmp_path, event_path)
 
     second = process_unprocessed_events(tmp_path, adapter="claude")
@@ -204,6 +209,10 @@ def test_process_events_marks_related_conflict_as_fork_rule(tmp_path: Path) -> N
     assert results[0].matched_rule != "retry-network-failures"
     assert results[0].review_required is False
     assert results[0].rule_path is not None
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "auto_applied"
+    assert candidate_record.candidate.review_required is False
+    assert candidate_record.candidate.confidence == "high"
     lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     forked = lifecycle.load_rule(results[0].matched_rule or "")
     assert forked.related_rule == "retry-network-failures"
@@ -234,3 +243,77 @@ def test_process_events_allows_short_specific_rule_to_refresh(tmp_path: Path) ->
     results = process_unprocessed_events(tmp_path, adapter="codex")
     assert results[0].status == "rule_refreshed"
     assert results[0].decision == "refresh_existing"
+
+
+def test_process_events_reapprove_needs_review_rule_when_evidence_is_clear(tmp_path: Path) -> None:
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    rule = LearningRule(
+        name="clear-review-rule",
+        rule="Keep tests updated.",
+        why="Verification should stay aligned with behavior changes.",
+        scope="codex adapter event:stop",
+        good_pattern="Update tests with code.",
+        avoid_pattern="Ship stale tests.",
+        summary="Keep tests updated.",
+        status="needs_review",
+    )
+    lifecycle.mark_needs_review(rule)
+
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(json.dumps({"message": "Keep tests updated."}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="codex",
+            event_name="stop",
+            cwd=str(tmp_path),
+            session_id="reapprove-1",
+            transcript_path=str(transcript),
+            payload={"message": "Keep tests updated."},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="codex")
+    assert results[0].status == "rule_reapproved"
+    assert results[0].decision == "refresh_existing"
+    resolved = lifecycle.load_rule("clear-review-rule")
+    assert resolved.status == "approved"
+
+
+def test_process_events_reapprove_needs_review_rule_when_revision_is_clear(tmp_path: Path) -> None:
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    rule = LearningRule(
+        name="service-tests-rule",
+        rule="Update tests whenever behavior changes.",
+        why="Verification should stay aligned with behavior changes.",
+        scope="codex adapter event:stop",
+        good_pattern="Update tests with code.",
+        avoid_pattern="Ship stale tests.",
+        summary="Update tests whenever behavior changes.",
+        status="needs_review",
+    )
+    lifecycle.mark_needs_review(rule)
+
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(
+        json.dumps({"message": "Always update tests whenever behavior changes in shared workflows and service-level changes."}) + "\n",
+        encoding="utf-8",
+    )
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="codex",
+            event_name="stop",
+            cwd=str(tmp_path),
+            session_id="reapprove-revise-1",
+            transcript_path=str(transcript),
+            payload={"message": "Always update tests whenever behavior changes in shared workflows and service-level changes."},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="codex")
+    assert results[0].status == "rule_reapproved"
+    assert results[0].decision == "revise_existing"
+    resolved = lifecycle.load_rule("service-tests-rule")
+    assert resolved.status == "approved"
+    assert resolved.decision == "revise_existing"

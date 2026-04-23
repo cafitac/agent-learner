@@ -60,6 +60,22 @@ class LearningLifecycle:
         rule.status = "draft"
         return self.save_rule(rule)
 
+    def cleanup_drafts(self) -> list[dict[str, str]]:
+        from .indexing import rebuild_rule_index
+
+        changes: list[dict[str, str]] = []
+        for path in sorted(self.drafts.glob("*.md")):
+            rule = self.load_rule(path)
+            if self._is_placeholder_draft(rule):
+                path.unlink(missing_ok=True)
+                changes.append({"name": rule.name, "action": "deleted_placeholder", "path": str(path)})
+                continue
+            saved = self.mark_needs_review(rule)
+            changes.append({"name": rule.name, "action": "migrated_to_needs_review", "path": str(saved)})
+        if changes:
+            rebuild_rule_index(self)
+        return changes
+
     def promote(self, rule: LearningRule) -> Path:
         rule.status = "approved"
         rule.promote_count = max(rule.promote_count + 1, 1)
@@ -70,6 +86,7 @@ class LearningLifecycle:
         self,
         path_or_name: str | Path,
         *,
+        status_override: RuleStatus | None = None,
         source_event: str | None = None,
         source_adapter: str | None = None,
         derived_from_candidate: str | None = None,
@@ -80,6 +97,8 @@ class LearningLifecycle:
         rule.last_seen_at = utc_now_iso()
         rule.refresh_count += 1
         rule.decision = "refresh_existing"
+        if status_override is not None:
+            rule.status = status_override
         if source_event:
             rule.source_event = source_event
         if source_adapter:
@@ -101,6 +120,7 @@ class LearningLifecycle:
         summary: str,
         scope: str,
         why: str,
+        status_override: RuleStatus | None = None,
         source_event: str | None = None,
         source_adapter: str | None = None,
         derived_from_candidate: str | None = None,
@@ -116,6 +136,8 @@ class LearningLifecycle:
         rule.last_seen_at = utc_now_iso()
         rule.decision = "revise_existing"
         rule.supersedes = prior_identity
+        if status_override is not None:
+            rule.status = status_override
         if source_event:
             rule.source_event = source_event
         if source_adapter:
@@ -188,10 +210,14 @@ class LearningLifecycle:
                     rule.status = "needs_review"
                     reason = f"model change:{current_model}"
             elif rule.status == "needs_review":
-                updated_at = self._parse_iso_datetime(rule.updated_at)
-                if updated_at is not None and (now - updated_at).days >= needs_review_days:
-                    rule.status = "deprecated"
-                    reason = f"needs_review stale {needs_review_days}d"
+                if self._can_auto_approve_needs_review(rule, current_model or ""):
+                    rule.status = "approved"
+                    reason = f"model revalidated:{current_model}"
+                else:
+                    updated_at = self._parse_iso_datetime(rule.updated_at)
+                    if updated_at is not None and (now - updated_at).days >= needs_review_days:
+                        rule.status = "deprecated"
+                        reason = f"needs_review stale {needs_review_days}d"
             if reason is None or rule.status == previous_status:
                 continue
             saved = self.save_rule(rule)
@@ -320,6 +346,26 @@ class LearningLifecycle:
             )
         )
         return max(24, (len(text) // 4) + 1)
+
+    def _is_placeholder_draft(self, rule: LearningRule) -> bool:
+        name = (rule.name or "").strip()
+        if name.startswith("learned-rule-draft-") or name.startswith("session-learning-"):
+            if not any(
+                [
+                    (rule.rule or "").strip(),
+                    (rule.summary or "").strip(),
+                    (rule.scope or "").strip(),
+                    (rule.why or "").strip(),
+                    (rule.good_pattern or "").strip(),
+                    (rule.avoid_pattern or "").strip(),
+                    (rule.evidence_excerpt or "").strip(),
+                    (rule.source_event or "").strip(),
+                    (rule.source_adapter or "").strip(),
+                    (rule.decision_reason or "").strip(),
+                ]
+            ):
+                return True
+        return False
 
     def render_rule(self, rule: LearningRule) -> str:
         metadata = {
@@ -508,6 +554,17 @@ class LearningLifecycle:
         if rule.model_dependency == "high":
             return True
         return not has_same_line
+
+    def _can_auto_approve_needs_review(self, rule: LearningRule, current_model: str) -> bool:
+        if not current_model:
+            return False
+        if current_model in rule.excluded_models:
+            return False
+        if current_model in rule.validated_on_models:
+            return True
+        if rule.model_dependency == "high":
+            return False
+        return any(self._is_upgrade(validated, current_model) for validated in rule.validated_on_models)
 
     def _is_upgrade(self, old: str, new: str) -> bool:
         return self._model_prefix(old) == self._model_prefix(new) and self._model_prefix(old) != ""

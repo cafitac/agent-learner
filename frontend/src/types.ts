@@ -13,11 +13,24 @@ export type Summary = {
     local_history_entries: number;
     global_history_entries: number;
     latest_activity: string;
+    automation_rate: number;
+    exception_rate: number;
+    auto_resolved_actions: number;
+    pending_review_candidates: number;
+    recent_window: number;
+    recent_auto_rate: number;
+    recent_exception_rate: number;
+    recent_auto_resolved_actions: number;
+    recent_pending_review_candidates: number;
   };
   history_summary: {
     by_action: Record<string, number>;
     by_adapter: Record<string, number>;
     by_decision: Record<string, number>;
+  };
+  exception_summary: {
+    rule_reasons: Record<string, number>;
+    candidate_reasons: Record<string, number>;
   };
   merged: { rules: RuleRecord[] };
   local: { rules: RuleRecord[] };

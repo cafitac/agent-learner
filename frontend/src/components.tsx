@@ -36,6 +36,12 @@ function historyRowTemplate(compact = false) {
   return compact ? "minmax(0, 1fr)" : "minmax(0, 1.2fr) minmax(220px, 0.9fr) auto";
 }
 
+function unresolvedReasonText(value: unknown) {
+  const text = displayText(value, "");
+  if (!text) return "The system could not safely finalize this item yet.";
+  return text;
+}
+
 function useFocusRing() {
   const base = useRef<WeakMap<EventTarget & object, string>>(new WeakMap());
   const onFocus = (event: React.FocusEvent<HTMLElement>) => {
@@ -309,10 +315,10 @@ export function RulesPanel({
   disabled = false,
   compact = false,
 }: {
-  scope: "curated" | "drafts" | "local" | "global";
-  setScope: (value: "curated" | "drafts" | "local" | "global") => void;
+  scope: "curated" | "needs_review" | "local" | "global";
+  setScope: (value: "curated" | "needs_review" | "local" | "global") => void;
   rules: RuleRecord[];
-  counts: Record<"curated" | "drafts" | "local" | "global", number>;
+  counts: Record<"curated" | "needs_review" | "local" | "global", number>;
   ruleFilter: string;
   setRuleFilter: (value: string) => void;
   onPromoteGlobal: (name: string) => void;
@@ -321,26 +327,26 @@ export function RulesPanel({
   compact?: boolean;
 }) {
   const focusHandlers = useFocusRing();
-  const tabs: Array<{ key: "curated" | "drafts" | "local" | "global"; label: string }> = [
+  const tabs: Array<{ key: "curated" | "needs_review" | "local" | "global"; label: string }> = [
     { key: "curated", label: "Curated" },
-    { key: "drafts", label: "Drafts" },
+    { key: "needs_review", label: "Needs Review" },
     { key: "local", label: "Local" },
     { key: "global", label: "Global" },
   ];
 
   const helperText =
     scope === "curated"
-      ? "Curated surfaces the highest-signal reusable rules first and hides unfinished draft noise."
-      : scope === "drafts"
-        ? "Drafts collects unfinished or low-signal rules that still need curation before they become reliable guidance."
+      ? "Curated surfaces the highest-signal reusable rules first and hides exception-queue noise."
+      : scope === "needs_review"
+        ? "Needs Review is the exception queue for rules the system could not safely finalize automatically."
         : scope === "local"
           ? "Local shows everything stored for the current project, including unfinished work."
           : "Global shows shared learning that has been promoted for cross-project reuse.";
   const sortHint =
     scope === "curated"
       ? "Sorted for quick reuse: strongest curated guidance first."
-      : scope === "drafts"
-        ? "Sorted for review: unfinished draft and needs-review items first."
+      : scope === "needs_review"
+        ? "Sorted for exception handling: rules needing manual review first."
         : scope === "local"
           ? "Sorted by current project relevance before lower-signal leftovers."
           : "Sorted by shared reuse value across projects.";
@@ -382,6 +388,7 @@ export function RulesPanel({
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>{helperText}</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <StatusPill text={sortHint} />
+        {scope === "needs_review" ? <StatusPill text="Open each item to see the unresolved reason and provenance before intervening." tone="warning" /> : null}
       </div>
       <div id={`rules-panel-${scope}`} role="tabpanel" aria-labelledby={`rules-tab-${scope}`} style={{ marginBottom: 16 }}>
         <input
@@ -419,17 +426,17 @@ export function RulesPanel({
             <strong style={{ display: "block", fontSize: 18 }}>
               {scope === "curated"
                 ? "No curated rules yet"
-                : scope === "drafts"
-                  ? "No draft rules need review"
+                : scope === "needs_review"
+                  ? "No rules need review"
                   : scope === "local"
                     ? "No local rules yet"
                     : "No global rules yet"}
             </strong>
             <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
               {scope === "curated"
-                ? "Start from local or draft learning, then promote the highest-signal guidance into the curated set."
-                : scope === "drafts"
-                  ? "Draft review is clear right now. New unfinished guidance will appear here when capture produces lower-signal or in-progress rules."
+                ? "Approved automation will populate the curated set as reusable guidance stabilizes."
+                : scope === "needs_review"
+                  ? "The exception queue is clear right now. Only ambiguous or low-confidence rules should appear here."
                   : scope === "local"
                     ? "This project has not stored any project-local rules yet."
                     : "No shared cross-project guidance has been promoted yet."}
@@ -452,6 +459,11 @@ export function RulesPanel({
                 <p style={{ ...mutedStyle, lineHeight: 1.65, marginBottom: 0, marginTop: 6 }}>
                   {displayText(rule.summary, "No summary yet. This rule still needs curation.")}
                 </p>
+                {scope === "needs_review" ? (
+                  <p style={{ marginTop: 10, marginBottom: 0, color: palette.amber, lineHeight: 1.6, fontSize: 13, fontWeight: 600 }}>
+                    {unresolvedReasonText(rule.decision_reason || rule.why)}
+                  </p>
+                ) : null}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ ...mutedStyle, fontSize: 13, lineHeight: 1.65 }}>
@@ -459,7 +471,7 @@ export function RulesPanel({
                   {displayText(rule.why, "Inspect the detail view for rationale and provenance.")}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                  <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
+                  <StatusPill text={displayText(rule.status, "needs_review")} tone={String(rule.status) === "approved" ? "success" : "warning"} />
                   <StatusPill text={displayText(rule.learning_scope, "project")} />
                   <StatusPill text={`uses ${String(rule.use_count ?? 0)}`} />
                 </div>
@@ -543,6 +555,7 @@ export function CandidatesPanel({
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <StatusPill text="Sorted by review urgency, then confidence, then title." />
+        <StatusPill text="Open details to see why an item stayed in review instead of auto-applying." tone="warning" />
       </div>
       {candidates.length > 0 ? (
         <div
@@ -570,7 +583,7 @@ export function CandidatesPanel({
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <strong style={{ fontSize: 18 }}>No candidates right now</strong>
               <p style={{ ...mutedStyle, margin: 0, lineHeight: 1.6 }}>
-                When new learning is captured, draft candidates will appear here with confidence, matching rule hints, and review actions.
+                When new learning is captured, candidates will appear here with confidence, matching rule hints, and review actions.
               </p>
               <p style={{ ...mutedStyle, margin: 0, lineHeight: 1.6 }}>
                 If this stays empty in a fresh workspace, run real work through the learning adapter first so reviewable candidates can be captured.
@@ -881,7 +894,7 @@ export function RuleModalContent({
           <strong style={{ fontSize: 22 }}>{String(rule.name)}</strong>
           <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.7 }}>{displayText(rule.summary, "No summary yet. This rule still needs curation.")}</p>
         </div>
-        <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
+        <StatusPill text={displayText(rule.status, "needs_review")} tone={String(rule.status) === "approved" ? "success" : "warning"} />
       </div>
 
       <Chips
@@ -900,6 +913,12 @@ export function RuleModalContent({
       <SectionBlock title="Why this exists">
         <p style={{ lineHeight: 1.75, margin: 0 }}>{displayText(rule.why, "No rationale has been written yet.")}</p>
       </SectionBlock>
+
+      {String(rule.status) === "needs_review" ? (
+        <SectionBlock title="Why this still needs review">
+          <p style={{ lineHeight: 1.75, margin: 0, color: palette.amber }}>{unresolvedReasonText(rule.decision_reason || rule.why)}</p>
+        </SectionBlock>
+      ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18 }}>
         <SectionBlock title="Good pattern">
@@ -968,6 +987,9 @@ export function CandidateModalContent({
       </SectionBlock>
       <SectionBlock title="Structured field diffs">
         {renderFieldDiffs(candidate.field_diffs)}
+      </SectionBlock>
+      <SectionBlock title="Why this stayed in review">
+        <p style={{ lineHeight: 1.75, margin: 0, color: palette.amber }}>{unresolvedReasonText(candidate.decision_reason)}</p>
       </SectionBlock>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Approve</button>
