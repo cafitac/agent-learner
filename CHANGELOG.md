@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-04-23
+
+### Fixed
+- Auto-promotion now respects `review_required` for candidate decisions instead of silently auto-applying some review-queue items anyway.
+- Operational/debugging notes such as hook-install troubleshooting guidance now stay in the candidate queue on first sighting and only auto-promote after repeated matching evidence, while normal code/test guidance keeps the existing automation-first path.
+
 ## [0.3.18] - 2026-04-23
 
 ### Fixed

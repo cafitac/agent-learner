@@ -118,7 +118,7 @@ def test_process_events_refreshes_existing_rule_and_writes_ledger(tmp_path: Path
     assert refreshed.derived_from_candidate is not None
 
 
-def test_process_events_marks_revision_candidate_with_review_required(tmp_path: Path) -> None:
+def test_process_events_keeps_revision_candidate_in_queue_when_review_required(tmp_path: Path) -> None:
     promote_rule(
         tmp_path,
         name="update-tests",
@@ -141,18 +141,21 @@ def test_process_events_marks_revision_candidate_with_review_required(tmp_path: 
     )
 
     results = process_unprocessed_events(tmp_path, adapter="codex")
-    assert results[0].status == "rule_revised"
+    assert results[0].status == "candidate_written"
     assert results[0].decision == "revise_existing"
     assert results[0].matched_rule == "update-tests"
-    assert results[0].review_required is False
+    assert results[0].review_required is True
     candidate_path = Path(results[0].candidate_path or "")
     assert candidate_path.exists()
     content = candidate_path.read_text(encoding="utf-8")
     assert "decision: revise_existing" in content
+    candidate_record = load_candidate_record(candidate_path)
+    assert candidate_record.status == "draft_candidate"
+    assert candidate_record.candidate.review_required is True
     lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
     revised = lifecycle.load_rule("update-tests")
-    assert revised.decision == "revise_existing"
-    assert revised.supersedes is not None
+    assert revised.decision is None
+    assert revised.supersedes is None
     ledger = (tmp_path / ".agent-learner" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
     assert '"field_diffs_summary"' in ledger
     assert 'rule:' in ledger
@@ -179,6 +182,55 @@ def test_process_events_rejects_generic_candidate_and_writes_rejection_ledger(tm
     assert results[0].candidate_path is not None
     ledger = (tmp_path / ".agent-learner" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
     assert '"action": "reject_candidate"' in ledger
+
+
+def test_process_events_keeps_operational_debug_note_in_candidate_queue_until_repeated(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    message = "Always distinguish OMX hook messages from AgentLearner hook messages when debugging Codex installs."
+    transcript.write_text(json.dumps({"message": message}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="codex",
+            event_name="stop",
+            cwd=str(tmp_path),
+            session_id="ops-1",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    first = process_unprocessed_events(tmp_path, adapter="codex")
+    assert first[0].status == "candidate_written"
+    assert first[0].decision == "new_rule"
+    assert first[0].review_required is True
+    assert first[0].rule_path is None
+    first_candidate = load_candidate_record(Path(first[0].candidate_path or ""))
+    assert first_candidate.status == "draft_candidate"
+    assert first_candidate.candidate.review_required is True
+
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="codex",
+            event_name="stop",
+            cwd=str(tmp_path),
+            session_id="ops-2",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    second = process_unprocessed_events(tmp_path, adapter="codex")
+    assert second[0].status == "rule_promoted"
+    assert second[0].decision == "new_rule"
+    assert second[0].review_required is False
+    assert second[0].rule_path is not None
+    second_candidate = load_candidate_record(Path(second[0].candidate_path or ""))
+    assert second_candidate.status == "auto_applied"
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    promoted = lifecycle.load_rule(second[0].matched_rule or "distinguish-omx-hook-messages-from-agentlearner")
+    assert promoted.status == "approved"
 
 
 def test_process_events_marks_related_conflict_as_fork_rule(tmp_path: Path) -> None:
