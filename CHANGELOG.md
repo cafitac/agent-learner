@@ -6,6 +6,17 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-04-23
+
+### Changed
+- Dashboard copy now frames the UI as a review-oriented control plane, with clearer Overview guidance for queue health, reusable guidance, candidate review, and audit.
+- Overview now behaves more like an operator dashboard with health summaries, prioritized action queues, explicit sorting hints, and stronger quiet-workspace guidance when little data exists.
+- Rules, candidates, and history views now explain their empty states and ordering logic more clearly so operators can predict what appears first and what to do next.
+
+### Fixed
+- Keyboard navigation and accessibility were improved across the dashboard with stronger focus visibility, semantic landmarks, skip navigation, live status announcements, and more explicit modal descriptions.
+- Rule and candidate detail modals now surface primary details and provenance in more scannable structures instead of long ungrouped metadata lists.
+
 ## [0.3.11] - 2026-04-23
 
 ## [0.3.10] - 2026-04-23

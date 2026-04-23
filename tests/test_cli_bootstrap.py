@@ -515,9 +515,46 @@ def test_fastapi_frontend_scaffold_paths() -> None:
     app_source = app_path.read_text(encoding="utf-8")
     components_source = components_path.read_text(encoding="utf-8")
     assert "HistoryTable" in app_source
+    assert "Review pending candidates first" in app_source
+    assert "Action queue" in app_source
+    assert "Health summary" in app_source
+    assert "Review Load" in app_source
+    assert "Rule Health" in app_source
+    assert "Audit Coverage" in app_source
+    assert "Quiet workspace" in app_source
+    assert "Nothing urgent is waiting yet" in app_source
+    assert "Operator notes" in app_source
+    assert "Keep rules tidy" in app_source
+    assert "Candidate queues are ordered by review urgency first" in app_source
+    assert "How this dashboard works" in app_source
+    assert "Dashboard is for viewing and managing learned guidance" in app_source
+    assert "applyFocusRing" in app_source
+    assert "Reusable learning, organized for review." in app_source
+    assert "Use Overview for queue health, Rules for reusable guidance, Candidates for review, and History for audit." in app_source
+    assert 'aria-label={`${item.label}: ${item.value}`}' in app_source
+    assert 'aria-label={`Priority ${item.priority}`}' in app_source
+    assert "Skip to main content" in app_source
+    assert 'aria-live="polite"' in app_source
+    assert 'aria-current={page === key ? "page" : undefined}' in app_source
+    assert 'aria-label="Dashboard sections"' in app_source
     assert "Promote to all projects" in components_source
     assert "Candidate Detail" in components_source
     assert "Filter history" in components_source
+    assert 'role="tablist"' in components_source
+    assert "View details" in components_source
+    assert "denseRowTemplate" in components_source
+    assert "previousFocus?.focus()" in components_source
+    assert "useFocusRing" in components_source
+    assert "Sorted by review urgency, then confidence, then title." in components_source
+    assert "Sorted for quick reuse: strongest curated guidance first." in components_source
+    assert "No curated rules yet" in components_source
+    assert "If this stays empty in a fresh workspace" in components_source
+    assert "Fresh workspaces often stay empty here" in components_source
+    assert "Review the primary summary first, then scan patterns, provenance, and actions." in components_source
+    assert "Primary details" in components_source
+    assert "No structured provenance has been recorded yet." in components_source
+    assert "KeyValueGrid" in components_source
+    assert 'aria-describedby={`${titleId}-description`}' in components_source
     dashboard_shell = app_root_dir() / "bin" / "dashboard.sh"
     publish_smoke_shell = app_root_dir() / "bin" / "publish-smoke.sh"
     assert dashboard_shell.exists()

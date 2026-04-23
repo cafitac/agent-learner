@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { CandidateRecord, HistoryRecord, RuleRecord, Summary, cardStyle, palette, panelStyle } from "./types";
+import { CandidateRecord, HistoryRecord, RuleRecord, Summary, cardStyle, focusRingStyle, palette, panelStyle } from "./types";
 
 const sectionTitleStyle: React.CSSProperties = {
   marginTop: 0,
@@ -28,6 +28,36 @@ const interactiveCardStyle: React.CSSProperties = {
   transition: "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
 };
 
+function denseRowTemplate(compact = false) {
+  return compact ? "minmax(0, 1fr)" : "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto";
+}
+
+function historyRowTemplate(compact = false) {
+  return compact ? "minmax(0, 1fr)" : "minmax(0, 1.2fr) minmax(220px, 0.9fr) auto";
+}
+
+function useFocusRing() {
+  const base = useRef<WeakMap<EventTarget & object, string>>(new WeakMap());
+  const onFocus = (event: React.FocusEvent<HTMLElement>) => {
+    const node = event.currentTarget;
+    if (!base.current.has(node)) {
+      base.current.set(node, node.style.boxShadow || "");
+    }
+    Object.assign(node.style, {
+      outline: String(focusRingStyle.outline),
+      outlineOffset: `${focusRingStyle.outlineOffset ?? 2}px`,
+      boxShadow: String(focusRingStyle.boxShadow),
+    });
+  };
+  const onBlur = (event: React.FocusEvent<HTMLElement>) => {
+    const node = event.currentTarget;
+    node.style.outline = "";
+    node.style.outlineOffset = "";
+    node.style.boxShadow = base.current.get(node) ?? "";
+  };
+  return { onFocus, onBlur };
+}
+
 function toneStyle(tone: "primary" | "danger" | "neutral"): React.CSSProperties {
   if (tone === "primary") {
     return { ...buttonBaseStyle, background: palette.blue, borderColor: palette.blue, color: "white", boxShadow: `0 10px 24px ${palette.blueSoft}` };
@@ -43,7 +73,7 @@ export function StatusPill({ text, tone = "neutral" }: { text: string; tone?: "n
     tone === "success"
       ? { background: palette.greenSoft, color: palette.green, border: palette.greenSoft }
       : tone === "warning"
-        ? { background: palette.redSoft, color: palette.red, border: palette.redSoft }
+        ? { background: palette.amberSoft, color: palette.amber, border: palette.amberSoft }
         : { background: "rgba(17,17,17,0.04)", color: palette.textMuted, border: "rgba(17,17,17,0.06)" };
   return (
     <span
@@ -120,6 +150,23 @@ function SectionBlock({
       <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>{title}</div>
       {children}
     </section>
+  );
+}
+
+function KeyValueGrid({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+      {items.map((item) => (
+        <article key={`${item.label}-${item.value}`} style={{ ...cardStyle, padding: 14, boxShadow: "none" }}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: palette.textMuted, fontWeight: 700 }}>{item.label}</div>
+          <div style={{ marginTop: 8, lineHeight: 1.6 }}>{item.value}</div>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -210,6 +257,7 @@ export function ProjectSelector({
   promoteAllProjects: boolean;
   setPromoteAllProjects: (value: boolean) => void;
 }) {
+  const focusHandlers = useFocusRing();
   return (
     <>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", color: palette.textMuted, marginTop: 14 }}>
@@ -224,6 +272,8 @@ export function ProjectSelector({
           <select
             value={selectedProject}
             onChange={(event) => setSelectedProject(event.target.value)}
+            onFocus={focusHandlers.onFocus}
+            onBlur={focusHandlers.onBlur}
             style={{ marginLeft: 8, padding: "10px 12px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, background: "rgba(255,255,255,0.88)", color: palette.text }}
           >
             {summary.known_projects.map((project) => (
@@ -257,6 +307,7 @@ export function RulesPanel({
   onPromoteGlobal,
   onSelectRule,
   disabled = false,
+  compact = false,
 }: {
   scope: "curated" | "drafts" | "local" | "global";
   setScope: (value: "curated" | "drafts" | "local" | "global") => void;
@@ -267,7 +318,9 @@ export function RulesPanel({
   onPromoteGlobal: (name: string) => void;
   onSelectRule: (name: string) => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
+  const focusHandlers = useFocusRing();
   const tabs: Array<{ key: "curated" | "drafts" | "local" | "global"; label: string }> = [
     { key: "curated", label: "Curated" },
     { key: "drafts", label: "Drafts" },
@@ -283,16 +336,30 @@ export function RulesPanel({
         : scope === "local"
           ? "Local shows everything stored for the current project, including unfinished work."
           : "Global shows shared learning that has been promoted for cross-project reuse.";
+  const sortHint =
+    scope === "curated"
+      ? "Sorted for quick reuse: strongest curated guidance first."
+      : scope === "drafts"
+        ? "Sorted for review: unfinished draft and needs-review items first."
+        : scope === "local"
+          ? "Sorted by current project relevance before lower-signal leftovers."
+          : "Sorted by shared reuse value across projects.";
 
   return (
     <section style={panelStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
         <h2 style={sectionTitleStyle}>Rules</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div role="tablist" aria-label="Rule scopes" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {tabs.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setScope(key)}
+              role="tab"
+              id={`rules-tab-${key}`}
+              aria-controls={`rules-panel-${key}`}
+              aria-selected={scope === key}
+              onFocus={focusHandlers.onFocus}
+              onBlur={focusHandlers.onBlur}
               style={{
                 ...buttonBaseStyle,
                 background: scope === key ? palette.text : "rgba(255,255,255,0.72)",
@@ -313,10 +380,15 @@ export function RulesPanel({
         </div>
       </div>
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>{helperText}</p>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <StatusPill text={sortHint} />
+      </div>
+      <div id={`rules-panel-${scope}`} role="tabpanel" aria-labelledby={`rules-tab-${scope}`} style={{ marginBottom: 16 }}>
         <input
           value={ruleFilter}
           onChange={(event) => setRuleFilter(event.target.value)}
+          onFocus={focusHandlers.onFocus}
+          onBlur={focusHandlers.onBlur}
           placeholder="Filter rules by name, summary, scope, or rationale..."
           style={{ width: "100%", padding: "12px 14px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, background: "rgba(255,255,255,0.88)", color: palette.text }}
         />
@@ -325,7 +397,7 @@ export function RulesPanel({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto",
+            gridTemplateColumns: denseRowTemplate(compact),
             gap: 16,
             padding: "0 6px 10px",
             borderBottom: `1px solid ${palette.line}`,
@@ -342,7 +414,28 @@ export function RulesPanel({
         </div>
       ) : null}
       <div style={{ display: "grid", gap: 8 }}>
-        {rules.length === 0 ? <p style={mutedStyle}>No rules available for this scope yet.</p> : null}
+        {rules.length === 0 ? (
+          <article style={{ ...cardStyle, padding: 22 }}>
+            <strong style={{ display: "block", fontSize: 18 }}>
+              {scope === "curated"
+                ? "No curated rules yet"
+                : scope === "drafts"
+                  ? "No draft rules need review"
+                  : scope === "local"
+                    ? "No local rules yet"
+                    : "No global rules yet"}
+            </strong>
+            <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
+              {scope === "curated"
+                ? "Start from local or draft learning, then promote the highest-signal guidance into the curated set."
+                : scope === "drafts"
+                  ? "Draft review is clear right now. New unfinished guidance will appear here when capture produces lower-signal or in-progress rules."
+                  : scope === "local"
+                    ? "This project has not stored any project-local rules yet."
+                    : "No shared cross-project guidance has been promoted yet."}
+            </p>
+          </article>
+        ) : null}
         {rules.map((rule) => (
           <article
             key={String(rule.name)}
@@ -350,21 +443,10 @@ export function RulesPanel({
               background: "transparent",
               borderTop: `1px solid ${palette.line}`,
               padding: "18px 6px",
-              cursor: "pointer",
               ...interactiveCardStyle,
             }}
-            onClick={() => onSelectRule(String(rule.name))}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelectRule(String(rule.name));
-              }
-            }}
-            tabIndex={0}
-            role="button"
-            aria-label={`Open details for rule ${String(rule.name)}`}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto", gap: 16, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: denseRowTemplate(compact), gap: 16, alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ display: "block", fontSize: 17, letterSpacing: "-0.02em" }}>{String(rule.name)}</strong>
                 <p style={{ ...mutedStyle, lineHeight: 1.65, marginBottom: 0, marginTop: 6 }}>
@@ -379,26 +461,28 @@ export function RulesPanel({
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
                   <StatusPill text={displayText(rule.status, "draft")} tone={String(rule.status) === "approved" ? "success" : "neutral"} />
                   <StatusPill text={displayText(rule.learning_scope, "project")} />
+                  <StatusPill text={`uses ${String(rule.use_count ?? 0)}`} />
                 </div>
               </div>
-              <div style={{ display: "grid", justifyItems: "end", gap: 10 }}>
-                <div style={{ ...mutedStyle, fontSize: 13, textAlign: "right" }}>
-                  <div>{`applies ${displayText(rule.scope, "unspecified")}`}</div>
+              <div style={{ display: "grid", justifyItems: compact ? "start" : "end", gap: 10 }}>
+                <div style={{ ...mutedStyle, fontSize: 13, textAlign: compact ? "left" : "right" }}>
+                  <div><strong style={{ color: palette.text, fontWeight: 600 }}>Applies:</strong> {displayText(rule.scope, "unspecified")}</div>
                   {rule.source_project ? <div>{`project ${String(rule.source_project)}`}</div> : null}
-                  <div>{`uses ${String(rule.use_count)}`}</div>
                 </div>
                 {rule.learning_scope === "project" ? (
                   <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onPromoteGlobal(String(rule.name));
-                    }}
+                    onClick={() => onPromoteGlobal(String(rule.name))}
+                    onFocus={focusHandlers.onFocus}
+                    onBlur={focusHandlers.onBlur}
                     style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
                     disabled={disabled}
                   >
                     Promote
                   </button>
                 ) : null}
+                <button onClick={() => onSelectRule(String(rule.name))} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+                  View details
+                </button>
               </div>
             </div>
           </article>
@@ -413,12 +497,15 @@ export function CandidatesPanel({
   onReviewCandidate,
   onSelectCandidate,
   disabled = false,
+  compact = false,
 }: {
   candidates: CandidateRecord[];
   onReviewCandidate: (candidate: string, action: "approve" | "reject" | "needs-review") => void;
   onSelectCandidate: (path: string) => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
+  const focusHandlers = useFocusRing();
   const pendingCount = candidates.filter((candidate) => {
     const status = displayText(candidate.status, "draft_candidate");
     return status === "draft_candidate" || status === "needs_review";
@@ -454,11 +541,14 @@ export function CandidatesPanel({
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
         Candidates are unfinalized learning signals. Review them here before they become trusted reusable guidance.
       </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <StatusPill text="Sorted by review urgency, then confidence, then title." />
+      </div>
       {candidates.length > 0 ? (
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto",
+            gridTemplateColumns: denseRowTemplate(compact),
             gap: 16,
             padding: "0 6px 10px",
             borderBottom: `1px solid ${palette.line}`,
@@ -482,6 +572,9 @@ export function CandidatesPanel({
               <p style={{ ...mutedStyle, margin: 0, lineHeight: 1.6 }}>
                 When new learning is captured, draft candidates will appear here with confidence, matching rule hints, and review actions.
               </p>
+              <p style={{ ...mutedStyle, margin: 0, lineHeight: 1.6 }}>
+                If this stays empty in a fresh workspace, run real work through the learning adapter first so reviewable candidates can be captured.
+              </p>
             </div>
           </article>
         ) : null}
@@ -492,21 +585,10 @@ export function CandidatesPanel({
               background: "transparent",
               borderTop: `1px solid ${palette.line}`,
               padding: "18px 6px",
-              cursor: "pointer",
               ...interactiveCardStyle,
             }}
-            onClick={() => onSelectCandidate(String(candidate.path))}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelectCandidate(String(candidate.path));
-              }
-            }}
-            tabIndex={0}
-            role="button"
-            aria-label={`Open details for candidate ${displayText(candidate.title, "untitled candidate")}`}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(220px, 0.9fr) auto", gap: 16, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: denseRowTemplate(compact), gap: 16, alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ display: "block", fontSize: 17, letterSpacing: "-0.02em" }}>{displayText(candidate.title, "Untitled candidate")}</strong>
                 <p style={{ ...mutedStyle, lineHeight: 1.65, marginBottom: 0, marginTop: 6 }}>
@@ -517,22 +599,23 @@ export function CandidatesPanel({
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <StatusPill text={displayText(candidate.status, "draft_candidate")} tone={candidateTone(displayText(candidate.status, "draft_candidate"))} />
                   <StatusPill text={displayText(candidate.decision, "pending")} tone={decisionTone(displayText(candidate.decision, ""))} />
+                  <StatusPill text={`confidence ${String(candidate.confidence || "-")}`} />
                 </div>
                 <div style={{ ...mutedStyle, marginTop: 10, lineHeight: 1.65 }}>
                   {candidate.matched_rule ? `Matched rule: ${String(candidate.matched_rule)}` : "No matched rule yet."}
                 </div>
               </div>
-              <div style={{ display: "grid", justifyItems: "end", gap: 10 }}>
-                <div style={{ ...mutedStyle, fontSize: 13, textAlign: "right" }}>
+              <div style={{ display: "grid", justifyItems: compact ? "start" : "end", gap: 10 }}>
+                <div style={{ ...mutedStyle, fontSize: 13, textAlign: compact ? "left" : "right" }}>
                   <div>{String(candidate.adapter)}</div>
-                  <div>{`confidence ${String(candidate.confidence || "-")}`}</div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: compact ? "flex-start" : "flex-end" }}>
                   <button
                     onClick={(event) => {
-                      event.stopPropagation();
                       onReviewCandidate(String(candidate.path), "approve");
                     }}
+                    onFocus={focusHandlers.onFocus}
+                    onBlur={focusHandlers.onBlur}
                     style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }}
                     disabled={disabled}
                   >
@@ -540,13 +623,17 @@ export function CandidatesPanel({
                   </button>
                   <button
                     onClick={(event) => {
-                      event.stopPropagation();
                       onReviewCandidate(String(candidate.path), "needs-review");
                     }}
+                    onFocus={focusHandlers.onFocus}
+                    onBlur={focusHandlers.onBlur}
                     style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }}
                     disabled={disabled}
                   >
                     Review
+                  </button>
+                  <button onClick={() => onSelectCandidate(String(candidate.path))} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+                    View details
                   </button>
                 </div>
               </div>
@@ -562,11 +649,14 @@ export function HistoryTable({
   items,
   filter,
   setFilter,
+  compact = false,
 }: {
   items: HistoryRecord[];
   filter: string;
   setFilter: (value: string) => void;
+  compact?: boolean;
 }) {
+  const focusHandlers = useFocusRing();
   const filtered = items.filter((item) => {
     const haystack = [item.ts, item.scope, item.action, item.rule, item.decision, item.reason].map((v) => String(v ?? "").toLowerCase()).join(" ");
     return haystack.includes(filter.toLowerCase());
@@ -584,6 +674,8 @@ export function HistoryTable({
         <input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
+          onFocus={focusHandlers.onFocus}
+          onBlur={focusHandlers.onBlur}
           placeholder="Filter history..."
           style={{ padding: "12px 14px", borderRadius: 14, border: `1px solid ${palette.lineStrong}`, minWidth: 240, background: "rgba(255,255,255,0.88)", color: palette.text }}
         />
@@ -598,6 +690,11 @@ export function HistoryTable({
             <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
               Try a broader filter or keep using the dashboard until new review and promotion events are recorded.
             </p>
+            {!filter.trim() ? (
+              <p style={{ ...mutedStyle, marginBottom: 0, lineHeight: 1.6 }}>
+                Fresh workspaces often stay empty here until the first promotion, revision, or candidate review is completed.
+              </p>
+            ) : null}
           </article>
         ) : (
           Object.entries(grouped).map(([day, dayItems]) => (
@@ -608,7 +705,7 @@ export function HistoryTable({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.2fr) minmax(220px, 0.9fr) auto",
+                  gridTemplateColumns: historyRowTemplate(compact),
                   gap: 16,
                   padding: "0 6px 10px",
                   borderBottom: `1px solid ${palette.line}`,
@@ -632,7 +729,7 @@ export function HistoryTable({
                     padding: "18px 6px",
                   }}
                 >
-                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(220px, 0.9fr) auto", gap: 16, alignItems: "start" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: historyRowTemplate(compact), gap: 16, alignItems: "start" }}>
                     <div style={{ minWidth: 0 }}>
                       <strong style={{ display: "block", fontSize: 16 }}>{displayText(item.rule, "Unnamed rule")}</strong>
                       <div style={{ ...mutedStyle, lineHeight: 1.65, marginTop: 6 }}>
@@ -644,7 +741,7 @@ export function HistoryTable({
                       <StatusPill text={displayText(item.scope, "project")} />
                       {item.decision ? <StatusPill text={displayText(item.decision, "decision")} tone={decisionTone(displayText(item.decision, ""))} /> : null}
                     </div>
-                    <div style={{ ...mutedStyle, fontSize: 13, whiteSpace: "nowrap", textAlign: "right" }}>{displayText(item.ts, "-")}</div>
+                    <div style={{ ...mutedStyle, fontSize: 13, whiteSpace: compact ? "normal" : "nowrap", textAlign: compact ? "left" : "right" }}>{displayText(item.ts, "-")}</div>
                   </div>
                 </article>
               ))}
@@ -665,10 +762,42 @@ export function DetailModal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const focusHandlers = useFocusRing();
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const titleId = `${title.toLowerCase().replace(/\s+/g, "-")}-title`;
 
   useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+      ).filter((element) => !element.hasAttribute("disabled") && element.tabIndex !== -1);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey) {
+        if (!active || active === first) {
+          event.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+      if (!active || active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
   }, []);
 
   return (
@@ -687,8 +816,11 @@ export function DetailModal({
       }}
       aria-modal="true"
       role="dialog"
+      aria-labelledby={titleId}
+      aria-describedby={`${titleId}-description`}
     >
       <div
+        ref={dialogRef}
         onClick={(event) => event.stopPropagation()}
         style={{
           width: "min(860px, 100%)",
@@ -702,9 +834,12 @@ export function DetailModal({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 18 }}>
-          <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}>{title}</h2>
-          <button ref={closeRef} onClick={onClose} style={toneStyle("neutral")} aria-label={`Close ${title}`}>Close</button>
+          <h2 id={titleId} style={{ ...sectionTitleStyle, marginBottom: 0 }}>{title}</h2>
+          <button ref={closeRef} onClick={onClose} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={toneStyle("neutral")} aria-label={`Close ${title}`}>Close</button>
         </div>
+        <p id={`${titleId}-description`} style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, lineHeight: 1.6 }}>
+          Review the primary summary first, then scan patterns, provenance, and actions.
+        </p>
         {children}
       </div>
     </div>
@@ -720,6 +855,24 @@ export function RuleModalContent({
   onPromoteGlobal: (name: string) => void;
   disabled?: boolean;
 }) {
+  const focusHandlers = useFocusRing();
+  const summaryItems = [
+    { label: "Learning scope", value: String(rule.learning_scope ?? "project") },
+    { label: "Applies to", value: displayText(rule.scope, "unspecified") },
+    { label: "Use count", value: String(rule.use_count ?? 0) },
+    ...(rule.source_project ? [{ label: "Source project", value: String(rule.source_project) }] : []),
+  ];
+  const provenanceItems = [
+    rule.decision_reason ? { label: "Decision reason", value: String(rule.decision_reason) } : null,
+    rule.source_adapter ? { label: "Source adapter", value: String(rule.source_adapter) } : null,
+    rule.source_event ? { label: "Source event", value: String(rule.source_event) } : null,
+    rule.derived_from_candidate ? { label: "Derived from", value: String(rule.derived_from_candidate) } : null,
+    rule.updated_at ? { label: "Updated at", value: String(rule.updated_at) } : null,
+    rule.evidence_excerpt ? { label: "Evidence excerpt", value: String(rule.evidence_excerpt) } : null,
+    rule.source ? { label: "Source", value: String(rule.source) } : null,
+    rule.related_rule ? { label: "Related rule", value: String(rule.related_rule) } : null,
+    rule.supersedes ? { label: "Supersedes", value: String(rule.supersedes) } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
@@ -740,6 +893,10 @@ export function RuleModalContent({
         ].filter(Boolean)}
       />
 
+      <SectionBlock title="Primary details">
+        <KeyValueGrid items={summaryItems} />
+      </SectionBlock>
+
       <SectionBlock title="Why this exists">
         <p style={{ lineHeight: 1.75, margin: 0 }}>{displayText(rule.why, "No rationale has been written yet.")}</p>
       </SectionBlock>
@@ -754,22 +911,12 @@ export function RuleModalContent({
       </div>
 
       <SectionBlock title="Provenance">
-        <div style={{ display: "grid", gap: 8 }}>
-          {rule.decision_reason ? <div style={mutedStyle}>decision reason: {String(rule.decision_reason)}</div> : null}
-          {rule.source_adapter ? <div style={mutedStyle}>source adapter: {String(rule.source_adapter)}</div> : null}
-          {rule.source_event ? <div style={mutedStyle}>source event: {String(rule.source_event)}</div> : null}
-          {rule.derived_from_candidate ? <div style={mutedStyle}>derived from: {String(rule.derived_from_candidate)}</div> : null}
-          {rule.updated_at ? <div style={mutedStyle}>updated at: {String(rule.updated_at)}</div> : null}
-          {rule.evidence_excerpt ? <div style={mutedStyle}>evidence excerpt: {String(rule.evidence_excerpt)}</div> : null}
-          {rule.source ? <div style={mutedStyle}>source: {String(rule.source)}</div> : null}
-          {rule.related_rule ? <div style={mutedStyle}>related rule: {String(rule.related_rule)}</div> : null}
-          {rule.supersedes ? <div style={mutedStyle}>supersedes: {String(rule.supersedes)}</div> : null}
-        </div>
+        {provenanceItems.length > 0 ? <KeyValueGrid items={provenanceItems} /> : <p style={{ ...mutedStyle, margin: 0 }}>No structured provenance has been recorded yet.</p>}
       </SectionBlock>
 
       {rule.learning_scope === "project" ? (
-        <div>
-          <button onClick={() => onPromoteGlobal(String(rule.name))} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => onPromoteGlobal(String(rule.name))} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>
             Promote Global
           </button>
         </div>
@@ -787,6 +934,13 @@ export function CandidateModalContent({
   onReviewCandidate: (candidate: string, action: "approve" | "reject" | "needs-review") => void;
   disabled?: boolean;
 }) {
+  const focusHandlers = useFocusRing();
+  const candidateItems = [
+    { label: "Adapter", value: String(candidate.adapter ?? "-") },
+    { label: "Decision", value: displayText(candidate.decision, "pending") },
+    { label: "Confidence", value: String(candidate.confidence || "-") },
+    ...(candidate.matched_rule ? [{ label: "Matched rule", value: String(candidate.matched_rule) }] : []),
+  ];
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -809,13 +963,16 @@ export function CandidateModalContent({
           candidate.matched_rule ? `matched ${String(candidate.matched_rule)}` : "",
         ].filter(Boolean)}
       />
+      <SectionBlock title="Primary details">
+        <KeyValueGrid items={candidateItems} />
+      </SectionBlock>
       <SectionBlock title="Structured field diffs">
         {renderFieldDiffs(candidate.field_diffs)}
       </SectionBlock>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Approve</button>
-        <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Needs Review</button>
-        <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Reject</button>
+        <button onClick={() => onReviewCandidate(String(candidate.path), "approve")} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("primary"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Approve</button>
+        <button onClick={() => onReviewCandidate(String(candidate.path), "needs-review")} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("neutral"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Needs Review</button>
+        <button onClick={() => onReviewCandidate(String(candidate.path), "reject")} onFocus={focusHandlers.onFocus} onBlur={focusHandlers.onBlur} style={{ ...toneStyle("danger"), opacity: disabled ? 0.6 : 1 }} disabled={disabled}>Reject</button>
       </div>
     </div>
   );

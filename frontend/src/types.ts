@@ -39,6 +39,8 @@ export const palette = {
   shadowSoft: "0 10px 30px rgba(15, 23, 42, 0.06)",
   blue: "#0071e3",
   blueSoft: "rgba(0, 113, 227, 0.10)",
+  amber: "#b26a00",
+  amberSoft: "rgba(178, 106, 0, 0.12)",
   red: "#d92d20",
   redSoft: "rgba(217, 45, 32, 0.10)",
   green: "#11845b",
@@ -55,6 +57,12 @@ export const pageStyle: React.CSSProperties = {
     linear-gradient(180deg, ${palette.bgAccent} 0%, ${palette.bg} 48%, #eef2f6 100%)
   `,
   color: palette.text,
+};
+
+export const focusRingStyle: React.CSSProperties = {
+  outline: `3px solid ${palette.blueSoft}`,
+  outlineOffset: 2,
+  boxShadow: `0 0 0 4px ${palette.blueSoft}`,
 };
 
 export const panelStyle: React.CSSProperties = {
