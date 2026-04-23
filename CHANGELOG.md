@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-04-23
+
+### Fixed
+- npm published-mode installs now force a `uvx --refresh` for adapter install commands so a newly updated wrapper does not immediately hit a stale cached Python core without the new CLI flags.
+
 ## [0.3.16] - 2026-04-23
 
 ### Added

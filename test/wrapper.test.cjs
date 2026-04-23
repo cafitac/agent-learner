@@ -97,6 +97,14 @@ test('buildExecutionPlan falls back to uvx without local core', () => {
   assert.deepEqual(plan.args, ['--from', 'agent-learner[web]', 'agent-learner', 'qa-codex-smoke', '--project-root', '/tmp/repo']);
 });
 
+test('buildExecutionPlan refreshes published core for codex install', () => {
+  const fakeRoot = path.join(__dirname, 'fixtures-no-pyproject');
+  const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: null, scope: 'user', json: false }, fakeRoot, '/tmp/repo');
+  assert.equal(plan.mode, 'published');
+  assert.equal(plan.command, 'uvx');
+  assert.deepEqual(plan.args, ['--refresh', '--from', 'agent-learner[web]', 'agent-learner', 'install-codex', '--scope', 'user']);
+});
+
 test('buildExecutionPlan honors uvx index override', () => {
   const fakeRoot = path.join(__dirname, 'fixtures-no-pyproject');
   const previous = process.env.AGENT_LEARNER_UVX_INDEX_URL;
