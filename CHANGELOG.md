@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.18] - 2026-04-23
+
+### Fixed
+- Codex and Claude installed hook scripts now call the npm wrapper through `agent-learner core ...` when the Python module is not directly importable, so user-scope installs can actually write repo-local events, candidates, and prompt context instead of silently failing through the wrapper help path.
+
 ## [0.3.17] - 2026-04-23
 
 ### Fixed

@@ -38,7 +38,7 @@ def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = N
         base = [sys.executable, "-m", "agent_learner.cli.main"]
     else:
         cli = shutil.which("agent-learner")
-        base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
+        base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
     try:
         subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
     except Exception:

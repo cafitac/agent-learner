@@ -26,7 +26,11 @@ def test_install_codex_adapter_creates_expected_assets(tmp_path: Path) -> None:
     assert prompt_hook["statusMessage"] == "AgentLearner: applying learned context"
     stop_hook = hooks["hooks"]["Stop"][0]["hooks"][0]
     assert stop_hook["statusMessage"] == "AgentLearner: capturing learning candidates"
-    assert ".omx/wiki" not in (tmp_path / ".codex" / "references" / "scripts" / "auto_session_learning.py").read_text(encoding="utf-8")
+    auto_script = (tmp_path / ".codex" / "references" / "scripts" / "auto_session_learning.py").read_text(encoding="utf-8")
+    prompt_script = (tmp_path / ".codex" / "references" / "scripts" / "codex_prompt_context.py").read_text(encoding="utf-8")
+    assert ".omx/wiki" not in auto_script
+    assert 'base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]' in auto_script
+    assert '[cli, "core", "render-codex-context"' in prompt_script
 
 
 def test_install_codex_adapter_user_scope_creates_user_assets_only(tmp_path: Path) -> None:
@@ -52,6 +56,8 @@ def test_install_claude_adapter_creates_expected_assets(tmp_path: Path) -> None:
     assert (tmp_path / ".claude" / "hooks" / "auto_session_learning.py").exists()
     assert (tmp_path / ".claude" / "skills" / "session-wrap" / "SKILL.md").exists()
     assert (tmp_path / ".agent-learner" / "events" / "claude").exists()
+    auto_script = (tmp_path / ".claude" / "hooks" / "auto_session_learning.py").read_text(encoding="utf-8")
+    assert 'base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]' in auto_script
     assert written
 
 

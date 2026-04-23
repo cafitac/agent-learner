@@ -40,7 +40,7 @@ def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = N
         base = [sys.executable, "-m", "agent_learner.cli.main"]
     else:
         cli = shutil.which("agent-learner")
-        base = [cli] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
+        base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
     try:
         subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
     except Exception:
@@ -178,7 +178,7 @@ def main() -> int:
     else:
         cli = shutil.which("agent-learner")
         if cli:
-            argv = [cli, "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
+            argv = [cli, "core", "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
         else:
             argv = [sys.executable, "-m", "agent_learner.cli.main", "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
 
