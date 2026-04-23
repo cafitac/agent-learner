@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter
-from agent_learner.core.storage import resolve_learning_root, storage_migration_marker_path
+from agent_learner.core.storage import read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
 
 
 def test_install_codex_adapter_creates_expected_assets(tmp_path: Path) -> None:
@@ -77,3 +77,17 @@ def test_resolve_learning_root_prefers_legacy_until_migration_marker(tmp_path: P
     canonical_rule.write_text("canonical", encoding="utf-8")
 
     assert resolve_learning_root(tmp_path) == tmp_path / ".codex" / "references" / "learning"
+
+
+def test_should_register_project_rejects_pytest_temp_paths(tmp_path: Path) -> None:
+    fake = tmp_path / "pytest-of-user" / "pytest-1" / "test_dashboard_summary_auto_re0"
+    fake.mkdir(parents=True, exist_ok=True)
+    assert should_register_project(fake) is False
+
+
+def test_register_project_skips_pytest_temp_paths(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home"))
+    fake = tmp_path / "pytest-of-user" / "pytest-1" / "test_dashboard_summary_auto_re0"
+    fake.mkdir(parents=True, exist_ok=True)
+    register_project(fake)
+    assert read_project_registry() == []

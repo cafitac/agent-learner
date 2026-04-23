@@ -448,7 +448,7 @@ def test_dashboard_summary_and_generate_dashboard_commands(monkeypatch, tmp_path
     assert "candidates" in summary
     assert "recent_history" in summary
     assert "agent_learner_home" in summary["paths"]
-    assert summary["known_projects"]
+    assert isinstance(summary["known_projects"], list)
 
     monkeypatch.setattr(
         "sys.argv",

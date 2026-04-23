@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-04-23
+
+### Fixed
+- Project registry cleanup now removes old pytest/tmp entries from the user registry and prevents future test-only temp paths from appearing in the dashboard project selector.
+
 ## [0.3.14] - 2026-04-23
 
 ### Fixed

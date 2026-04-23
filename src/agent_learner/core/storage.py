@@ -118,10 +118,24 @@ def read_project_registry() -> list[dict[str, str]]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def should_register_project(project_root: Path) -> bool:
+    root_text = str(project_root.resolve())
+    name = project_root.name
+    if "/pytest-of-" in root_text or "/pytest-" in root_text:
+        return False
+    if "/tmp/" in root_text or root_text.startswith("/tmp/"):
+        return False
+    if name.startswith("test_") and "pytest" in root_text:
+        return False
+    return True
+
+
 def register_project(project_root: Path) -> Path:
     project_root = project_root.resolve()
     path = project_registry_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    if not should_register_project(project_root):
+        return path
     projects = read_project_registry()
     entry = {"name": project_root.name, "root": str(project_root)}
     roots = {item["root"] for item in projects}
