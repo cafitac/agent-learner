@@ -782,7 +782,8 @@ def test_dashboard_summary_categorizes_exception_reasons(tmp_path: Path) -> None
     assert summary["exception_summary"]["candidate_reasons"]["overlap"] == 1
 
 
-def test_dashboard_summary_reports_automation_metrics(tmp_path: Path) -> None:
+def test_dashboard_summary_reports_automation_metrics(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
     history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
@@ -826,12 +827,12 @@ def test_dashboard_summary_reports_automation_metrics(tmp_path: Path) -> None:
     )
 
     summary = build_dashboard_summary(tmp_path)
-    assert summary["overview"]["automation_rate"] == 33.3
+    assert summary["overview"]["automation_rate"] == 66.7
     assert summary["overview"]["exception_rate"] == 100.0
     assert summary["overview"]["auto_resolved_actions"] == 2
     assert summary["overview"]["pending_review_candidates"] == 1
     assert summary["overview"]["recent_window"] == 10
-    assert summary["overview"]["recent_auto_rate"] == 33.3
+    assert summary["overview"]["recent_auto_rate"] == 66.7
     assert summary["overview"]["recent_exception_rate"] == 100.0
     assert summary["overview"]["recent_auto_resolved_actions"] == 2
     assert summary["overview"]["recent_pending_review_candidates"] == 1

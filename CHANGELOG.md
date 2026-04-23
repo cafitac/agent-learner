@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-04-23
+
+### Fixed
+- Release verification now computes automation metrics deterministically during tests by isolating global learning state, preventing environment-specific publish failures while preserving the new dashboard KPI behavior.
+
 ## [0.3.13] - 2026-04-23
 
 ### Changed
