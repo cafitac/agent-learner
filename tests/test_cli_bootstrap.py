@@ -63,7 +63,7 @@ def test_doctor_command_reports_status(monkeypatch, tmp_path: Path, capsys) -> N
 def test_bootstrap_claude_only(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         "sys.argv",
-        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "claude"],
+        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "claude", "--claude-scope", "project"],
     )
     assert cli_main() == 0
     assert (tmp_path / ".claude" / "settings.json").exists()
@@ -73,7 +73,7 @@ def test_bootstrap_claude_only(monkeypatch, tmp_path: Path) -> None:
 def test_bootstrap_both(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         "sys.argv",
-        ["agent-learner", "bootstrap", "--target", str(tmp_path)],
+        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--claude-scope", "project"],
     )
     assert cli_main() == 0
     assert (tmp_path / ".codex" / "hooks.json").exists()
