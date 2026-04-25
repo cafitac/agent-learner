@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.22] - 2026-04-25
+
+### Fixed
+- npm wrapper now passes `--scope` to `install-claude` and omits `--target` for user-scope installs (matching Codex behavior), preventing incorrect absolute paths in project-level `settings.json`.
+
 ## [0.3.21] - 2026-04-25
 
 ### Added
