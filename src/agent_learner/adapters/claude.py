@@ -40,8 +40,8 @@ def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = N
         cli = shutil.which("agent-learner")
         base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
     try:
-        subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
-    except Exception:
+        subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False, timeout=30)
+    except (subprocess.TimeoutExpired, Exception):
         return
 
 
@@ -119,6 +119,7 @@ def install_claude_adapter(target_root: Path) -> list[Path]:
                             {
                                 "type": "command",
                                 "command": "python3 ./.claude/hooks/auto_session_learning.py",
+                                "timeout": 30,
                             }
                         ],
                     }

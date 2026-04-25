@@ -42,8 +42,8 @@ def run_shared_cli(project_root: Path, argv: list[str], payload: dict | None = N
         cli = shutil.which("agent-learner")
         base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]
     try:
-        subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False)
-    except Exception:
+        subprocess.run(base + argv, input=json.dumps(payload or {}), capture_output=True, text=True, check=False, timeout=30)
+    except (subprocess.TimeoutExpired, Exception):
         return
 
 
@@ -183,8 +183,8 @@ def main() -> int:
             argv = [sys.executable, "-m", "agent_learner.cli.main", "render-codex-context", "--project-root", str(project_root), "--prompt", prompt, "--format", "hook-json"]
 
     try:
-        result = subprocess.run(argv, capture_output=True, text=True, check=False)
-    except Exception:
+        result = subprocess.run(argv, capture_output=True, text=True, check=False, timeout=30)
+    except (subprocess.TimeoutExpired, Exception):
         return 0
     if result.returncode != 0:
         return 0

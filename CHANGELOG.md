@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.20] - 2026-04-25
+
+### Fixed
+- `subprocess.run` calls in installed Claude and Codex hook scripts now include `timeout=30` so a slow or hung `agent-learner` process cannot block session teardown indefinitely.
+- `install-claude` now writes `"timeout": 30` into the `SessionEnd` hook entry in `settings.json`, matching the existing Codex hook timeout.
+
 ## [0.3.19] - 2026-04-23
 
 ### Fixed
