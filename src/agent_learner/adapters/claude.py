@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 from .common import ensure_dir, merge_json_file, write_text
@@ -95,16 +96,28 @@ Turn repeated corrections into durable reusable rules.
 """
 
 
-def install_claude_adapter(target_root: Path) -> list[Path]:
+def _command_for_script(script_path: Path, *, scope: str) -> str:
+    if scope == "user":
+        return f"python3 {shlex.quote(str(script_path))}"
+    return "python3 ./.claude/hooks/auto_session_learning.py"
+
+
+def install_claude_adapter_with_scope(target_root: Path, *, scope: str = "project") -> list[Path]:
+    if scope not in {"project", "user"}:
+        raise ValueError(f"unsupported claude install scope: {scope}")
     written: list[Path] = []
     claude_root = ensure_dir(target_root / ".claude")
+    auto_script = claude_root / "hooks" / "auto_session_learning.py"
+
     ensure_dir(claude_root / "skills" / "session-wrap")
     ensure_dir(claude_root / "skills" / "feedback-learning")
     ensure_dir(claude_root / "hooks")
-    ensure_dir(claude_root / "learned-feedback")
-    ensure_dir(target_root / ".agent-learner" / "events" / "claude")
 
-    written.append(write_text(claude_root / "hooks" / "auto_session_learning.py", AUTO_SESSION_LEARNING))
+    if scope == "project":
+        ensure_dir(claude_root / "learned-feedback")
+        ensure_dir(target_root / ".agent-learner" / "events" / "claude")
+
+    written.append(write_text(auto_script, AUTO_SESSION_LEARNING))
     written.append(write_text(claude_root / "skills" / "session-wrap" / "SKILL.md", SESSION_WRAP))
     written.append(write_text(claude_root / "skills" / "feedback-learning" / "SKILL.md", FEEDBACK_LEARNING))
 
@@ -118,7 +131,7 @@ def install_claude_adapter(target_root: Path) -> list[Path]:
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "python3 ./.claude/hooks/auto_session_learning.py",
+                                "command": _command_for_script(auto_script, scope=scope),
                                 "timeout": 30,
                             }
                         ],
@@ -129,3 +142,7 @@ def install_claude_adapter(target_root: Path) -> list[Path]:
     )
     written.append(claude_root / "settings.json")
     return written
+
+
+def install_claude_adapter(target_root: Path) -> list[Path]:
+    return install_claude_adapter_with_scope(target_root, scope="project")

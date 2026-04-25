@@ -6,6 +6,13 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.21] - 2026-04-25
+
+### Added
+- `install-claude` now supports `--scope user` (default) and `--scope project`, mirroring the Codex install model. User-scope installs to `~/.claude/` with an absolute hook path; project-scope keeps the existing relative-path behavior.
+- `bootstrap` gains a `--claude-scope` flag (default `user`) to control Claude scope alongside the existing `--codex-scope`.
+- `install_claude_adapter_with_scope()` exported from `agent_learner.adapters` for programmatic use.
+
 ## [0.3.20] - 2026-04-25
 
 ### Fixed

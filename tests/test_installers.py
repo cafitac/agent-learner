@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter
+from agent_learner.adapters.claude import install_claude_adapter_with_scope as install_claude_adapter_with_scope
 from agent_learner.adapters.codex import install_codex_adapter_with_scope
 from agent_learner.core.storage import read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
 
@@ -59,6 +60,23 @@ def test_install_claude_adapter_creates_expected_assets(tmp_path: Path) -> None:
     auto_script = (tmp_path / ".claude" / "hooks" / "auto_session_learning.py").read_text(encoding="utf-8")
     assert 'base = [cli, "core"] if cli else [sys.executable, "-m", "agent_learner.cli.main"]' in auto_script
     assert written
+
+
+def test_install_claude_adapter_user_scope_creates_user_assets_only(tmp_path: Path) -> None:
+    home_root = tmp_path / "home"
+    written = install_claude_adapter_with_scope(home_root, scope="user")
+    settings_path = home_root / ".claude" / "settings.json"
+    assert settings_path.exists()
+    assert (home_root / ".claude" / "hooks" / "auto_session_learning.py").exists()
+    assert (home_root / ".claude" / "skills" / "session-wrap" / "SKILL.md").exists()
+    assert not (home_root / ".agent-learner" / "events").exists()
+    assert not (home_root / ".claude" / "learned-feedback").exists()
+    assert written
+
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    hook_cmd = settings["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+    assert str(home_root / ".claude" / "hooks" / "auto_session_learning.py") in hook_cmd
+    assert settings["hooks"]["SessionEnd"][0]["hooks"][0]["timeout"] == 30
 
 
 def test_installers_are_independent(tmp_path: Path) -> None:

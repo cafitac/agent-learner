@@ -10,6 +10,7 @@ import webbrowser
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter
+from agent_learner.adapters.claude import install_claude_adapter_with_scope
 from agent_learner.adapters.codex import install_codex_adapter_with_scope
 from agent_learner.adapters.codex_context import (
     build_codex_user_prompt_hook_output,
@@ -104,7 +105,8 @@ def build_parser() -> argparse.ArgumentParser:
     codex_cmd.add_argument("--scope", choices=["project", "user"], default="user")
 
     claude_cmd = sub.add_parser("install-claude")
-    claude_cmd.add_argument("--target", default=".")
+    claude_cmd.add_argument("--target")
+    claude_cmd.add_argument("--scope", choices=["project", "user"], default="user")
 
     bootstrap_cmd = sub.add_parser("bootstrap")
     bootstrap_cmd.add_argument("--target", default=".")
@@ -114,6 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated adapter list: codex, claude",
     )
     bootstrap_cmd.add_argument("--codex-scope", choices=["project", "user"], default="project")
+    bootstrap_cmd.add_argument("--claude-scope", choices=["project", "user"], default="user")
 
     promote_cmd = sub.add_parser("promote-demo")
     promote_cmd.add_argument("--root", default=".agent-learner")
@@ -322,7 +325,8 @@ def main() -> int:
             print(path)
         return 0
     if args.command == "install-claude":
-        written = install_claude_adapter(Path(args.target).resolve())
+        target = Path(args.target).expanduser().resolve() if args.target else (Path.home() if args.scope == "user" else Path.cwd().resolve())
+        written = install_claude_adapter_with_scope(target, scope=args.scope)
         for path in written:
             print(path)
         return 0
@@ -333,7 +337,8 @@ def main() -> int:
         if "codex" in adapters:
             written.extend(install_codex_adapter_with_scope(target, scope=args.codex_scope))
         if "claude" in adapters:
-            written.extend(install_claude_adapter(target))
+            claude_target = Path.home() if args.claude_scope == "user" else target
+            written.extend(install_claude_adapter_with_scope(claude_target, scope=args.claude_scope))
         for path in dict.fromkeys(written):
             print(path)
         return 0
