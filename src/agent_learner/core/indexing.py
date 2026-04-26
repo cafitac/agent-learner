@@ -40,8 +40,9 @@ class RuleIndexEntry:
     promote_count: int
     updated_at: str | None
     last_used: str | None
-    learning_scope: LearningScope
-    source_project: str | None
+    harness: str = "universal"
+    learning_scope: LearningScope = "project"
+    source_project: str | None = None
 
 
 @dataclass(slots=True)
@@ -95,6 +96,7 @@ def rule_to_index_entry(learning_root: Path, path: Path, rule: LearningRule) -> 
         last_used=rule.last_used,
         learning_scope=rule.learning_scope,
         source_project=rule.source_project,
+        harness=rule.harness,
     )
 
 

@@ -1,0 +1,40 @@
+{
+  "learning_root": "/Users/reddit/Project/agent-learner/.agent-learner/learning",
+  "generated_at": "2026-04-23T03:05:16Z",
+  "total_rules": 1,
+  "entries": [
+    {
+      "name": "change-with-tests",
+      "relative_path": "approved/change-with-tests.md",
+      "status": "approved",
+      "summary": "동작 변경이 있으면 관련 테스트도 함께 갱신하거나 추가한다.",
+      "rule": "동작 변경이 있으면 관련 테스트도 함께 갱신하거나 추가한다.",
+      "why": "세션 종료 후 가장 재사용 가치가 높은 규칙은 변경과 검증을 함께 묶는 것이다.",
+      "scope": "서비스 수정, 버그 수정, 리팩토링",
+      "good_pattern": "프로덕션 변경과 테스트 변경이 같은 세션 diff에 함께 존재한다.",
+      "avoid_pattern": "코드만 바꾸고 테스트는 다음에 하겠다고 미루는 흐름",
+      "tags": [],
+      "triggers": [],
+      "task_types": [],
+      "file_patterns": [],
+      "projects": [
+        "*"
+      ],
+      "languages": [],
+      "frameworks": [],
+      "validated_on_models": [],
+      "excluded_models": [],
+      "model_dependency": "low",
+      "priority": "medium",
+      "confidence": "medium",
+      "token_estimate": 0,
+      "use_count": 0,
+      "refresh_count": 0,
+      "promote_count": 21,
+      "updated_at": null,
+      "last_used": null,
+      "learning_scope": "project",
+      "source_project": null
+    }
+  ]
+}

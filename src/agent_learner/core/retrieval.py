@@ -36,6 +36,7 @@ class RetrievalRequest:
     token_budget: int | None = None
     include_needs_review: bool = False
     context: ContextSnapshot | None = None
+    adapter: str | None = None
 
 
 def tokenize(text: str) -> list[str]:
@@ -53,6 +54,8 @@ def retrieve_rules(lifecycle: LearningLifecycle, request: RetrievalRequest) -> l
     scored: list[tuple[RuleIndexEntry, float, list[str]]] = []
     for entry in document.entries:
         if entry.status not in statuses:
+            continue
+        if request.adapter is not None and entry.harness not in (request.adapter, "universal", ""):
             continue
         if not should_inject_rule(entry, request.context):
             continue
