@@ -9,6 +9,12 @@ build/
 *.egg-info/
 .omx/
 
+# runtime data (agent-learner, hermit, codex)
+.agent-learner/
+.codex/
+.hermit/
+frontend/package-lock.json
+
 node_modules/
 frontend/node_modules/
 .idea/

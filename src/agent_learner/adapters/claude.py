@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shlex
 from pathlib import Path
 
@@ -146,3 +147,58 @@ def install_claude_adapter_with_scope(target_root: Path, *, scope: str = "projec
 
 def install_claude_adapter(target_root: Path) -> list[Path]:
     return install_claude_adapter_with_scope(target_root, scope="project")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: lightweight hook installer (mirrors hermit adapter pattern)
+# ---------------------------------------------------------------------------
+
+_CLAUDE_HOOK_COMMAND = (
+    "agent-learner process --adapter claude"
+    " --session-id $CLAUDE_SESSION_ID"
+    " --cwd $CWD"
+    " --model-id $CLAUDE_MODEL"
+    " --auto"
+)
+
+
+def _is_agent_learner_hook(hook: dict) -> bool:
+    return "agent-learner" in hook.get("command", "")
+
+
+def install_claude_hooks(project_root: Path, *, scope: str = "project") -> Path:
+    """
+    Install agent-learner Stop hook into .claude/settings.json.
+
+    - scope="project": {project_root}/.claude/settings.json
+    - scope="user": {project_root}/.claude/settings.json (caller routes to home)
+    - Idempotent: updates existing agent-learner hook if present.
+    - Preserves other Stop hooks.
+    """
+    settings_path = project_root / ".claude" / "settings.json"
+    ensure_dir(settings_path.parent)
+
+    if settings_path.exists():
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    else:
+        settings = {}
+
+    hooks = settings.setdefault("hooks", {})
+    stop_hooks: list[dict] = hooks.setdefault("Stop", [])
+
+    new_hook = {"command": _CLAUDE_HOOK_COMMAND}
+    found = False
+    for i, hook in enumerate(stop_hooks):
+        if _is_agent_learner_hook(hook):
+            stop_hooks[i] = new_hook
+            found = True
+            break
+    if not found:
+        stop_hooks.append(new_hook)
+
+    hooks["Stop"] = stop_hooks
+    settings_path.write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return settings_path

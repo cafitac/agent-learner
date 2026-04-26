@@ -336,3 +336,61 @@ def install_codex_adapter_with_scope(target_root: Path, *, scope: str = "project
     if scope == "project":
         written.extend(migrate_legacy_learning_assets(target_root))
     return written
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: lightweight hook installer (mirrors hermit adapter pattern)
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+
+_CODEX_HOOK_COMMAND = (
+    "agent-learner process --adapter codex"
+    " --session-id $CODEX_SESSION_ID"
+    " --cwd $CWD"
+    " --model-id $CODEX_MODEL"
+    " --auto"
+)
+
+
+def _is_al_hook(hook: dict) -> bool:
+    return "agent-learner" in hook.get("command", "")
+
+
+def install_codex_hooks(project_root: Path, *, scope: str = "project") -> Path:
+    """
+    Install agent-learner Stop hook into .codex/hooks.json.
+
+    - scope="project": {project_root}/.codex/hooks.json
+    - scope="user": {project_root}/.codex/hooks.json (caller routes to home)
+    - Idempotent: updates existing agent-learner hook if present.
+    - Preserves other Stop hooks.
+    """
+    hooks_path = project_root / ".codex" / "hooks.json"
+    ensure_dir(hooks_path.parent)
+
+    if hooks_path.exists():
+        data = _json.loads(hooks_path.read_text(encoding="utf-8"))
+    else:
+        data = {}
+
+    hooks_obj = data.setdefault("hooks", {})
+    stop_hooks: list[dict] = hooks_obj.setdefault("Stop", [])
+
+    new_hook = {"command": _CODEX_HOOK_COMMAND}
+    found = False
+    for i, hook in enumerate(stop_hooks):
+        if _is_al_hook(hook):
+            stop_hooks[i] = new_hook
+            found = True
+            break
+    if not found:
+        stop_hooks.append(new_hook)
+
+    hooks_obj["Stop"] = stop_hooks
+    hooks_path.write_text(
+        _json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return hooks_path
