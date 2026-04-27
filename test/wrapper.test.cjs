@@ -12,6 +12,7 @@ const {
   publishedCoreProbe,
   runWrapperUpdate,
   laneDoctorChecks,
+  printHelp,
 } = require('../lib/wrapper.cjs');
 
 test('parseArgs handles codex install', () => {
@@ -36,12 +37,25 @@ test('parseArgs handles codex install user scope', () => {
   });
 });
 
-test('parseArgs handles version and doctor', () => {
+test('parseArgs handles version, doctor, and bootstrap', () => {
   assert.deepEqual(parseArgs(['version']), { type: 'version' });
   assert.deepEqual(parseArgs(['doctor', '--json']), { type: 'doctor', json: true });
-  assert.deepEqual(parseArgs(['install-codex', '--target', '/tmp/repo']), { type: 'lane', lane: 'codex', action: 'install', target: '/tmp/repo', scope: null, json: false });
+  assert.deepEqual(parseArgs(['bootstrap', '--adapters', 'codex']), { type: 'core', coreArgs: ['bootstrap', '--adapters', 'codex'] });
   assert.deepEqual(parseArgs(['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json']), { type: 'core', coreArgs: ['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json'] });
   assert.deepEqual(parseArgs(['update']), { type: 'update' });
+});
+
+test('parseArgs rejects removed top-level install aliases', () => {
+  assert.deepEqual(parseArgs(['install-codex', '--target', '/tmp/repo']), {
+    type: 'removed-install',
+    command: 'install-codex',
+    replacement: 'agent-learner bootstrap --adapters codex',
+  });
+  assert.deepEqual(parseArgs(['install-claude', '--target', '/tmp/repo']), {
+    type: 'removed-install',
+    command: 'install-claude',
+    replacement: 'agent-learner bootstrap --adapters claude',
+  });
 });
 
 test('parseArgs handles dashboard flags', () => {
@@ -78,7 +92,7 @@ test('buildExecutionPlan uses local uv run inside repo checkout', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: '/tmp/repo', json: false }, packageRoot, '/tmp/repo');
   assert.equal(plan.mode, 'local');
   assert.equal(plan.command, 'uv');
-  assert.deepEqual(plan.args, ['run', 'agent-learner', 'install-codex', '--target', '/tmp/repo', '--scope', 'user']);
+  assert.deepEqual(plan.args, ['run', 'agent-learner', 'bootstrap', '--adapters', 'codex', '--target', '/tmp/repo', '--codex-scope', 'user']);
 });
 
 test('buildExecutionPlan preserves user scope for codex install', () => {
@@ -86,7 +100,7 @@ test('buildExecutionPlan preserves user scope for codex install', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: null, scope: 'user', json: false }, packageRoot, '/tmp/repo');
   assert.equal(plan.mode, 'local');
   assert.equal(plan.command, 'uv');
-  assert.deepEqual(plan.args, ['run', 'agent-learner', 'install-codex', '--scope', 'user']);
+  assert.deepEqual(plan.args, ['run', 'agent-learner', 'bootstrap', '--adapters', 'codex', '--codex-scope', 'user']);
 });
 
 test('buildExecutionPlan falls back to uvx without local core', () => {
@@ -102,7 +116,7 @@ test('buildExecutionPlan refreshes published core for codex install', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: null, scope: 'user', json: false }, fakeRoot, '/tmp/repo');
   assert.equal(plan.mode, 'published');
   assert.equal(plan.command, 'uvx');
-  assert.deepEqual(plan.args, ['--refresh', '--from', 'agent-learner[web]', 'agent-learner', 'install-codex', '--scope', 'user']);
+  assert.deepEqual(plan.args, ['--refresh', '--from', 'agent-learner[web]', 'agent-learner', 'bootstrap', '--adapters', 'codex', '--codex-scope', 'user']);
 });
 
 test('buildExecutionPlan honors uvx index override', () => {
@@ -233,15 +247,35 @@ test('wrapper version comes from package json', () => {
 });
 
 
-test('completionScript exposes update alias and direct install aliases', () => {
+test('completionScript exposes bootstrap and hides removed install aliases', () => {
   const { completionScript } = require('../lib/wrapper.cjs');
   const bash = completionScript('bash');
-  assert.match(bash, /install-codex/);
+  assert.doesNotMatch(bash, /install-codex/);
+  assert.match(bash, /bootstrap/);
   assert.match(bash, /rebuild-index/);
   assert.match(bash, /update/);
   const zsh = completionScript('zsh');
-  assert.match(zsh, /install-codex/);
+  assert.doesNotMatch(zsh, /install-codex/);
+  assert.match(zsh, /bootstrap/);
   assert.match(zsh, /update/);
+});
+
+test('printHelp advertises bootstrap as the install path', () => {
+  const packageRoot = path.resolve(__dirname, '..');
+  const calls = [];
+  const originalLog = console.log;
+  console.log = (message) => {
+    calls.push(String(message));
+  };
+  try {
+    printHelp(packageRoot);
+  } finally {
+    console.log = originalLog;
+  }
+  const output = calls.join('\n');
+  assert.match(output, /agent-learner bootstrap/);
+  assert.doesNotMatch(output, /install-codex/);
+  assert.doesNotMatch(output, /install-claude/);
 });
 
 test('runWrapperUpdate shells out to npm global install', () => {

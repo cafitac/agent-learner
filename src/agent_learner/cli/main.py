@@ -3,15 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import sys
 import webbrowser
 from pathlib import Path
 
-from agent_learner.adapters import install_claude_adapter, install_codex_adapter
+from agent_learner.adapters import install_claude_adapter, install_codex_adapter, install_hermes_adapter
 from agent_learner.adapters.claude import install_claude_adapter_with_scope
 from agent_learner.adapters.codex import install_codex_adapter_with_scope
+from agent_learner.adapters.hermes import install_hermes_adapter_with_scope
 from agent_learner.adapters.codex_context import (
     build_codex_user_prompt_hook_output,
     format_retrieval_results_as_json,
@@ -42,6 +44,13 @@ from agent_learner.core.storage import (
     resolve_learning_root,
 )
 from agent_learner.core.webapp import run_dashboard_server
+
+
+LEGACY_INSTALL_REPLACEMENTS = {
+    "install-codex": "agent-learner bootstrap --adapters codex",
+    "install-claude": "agent-learner bootstrap --adapters claude",
+    "install-hermes": "agent-learner bootstrap --adapters hermes",
+}
 
 
 def filter_history_entries(entries: list[dict[str, object]], args: argparse.Namespace) -> list[dict[str, object]]:
@@ -78,6 +87,61 @@ def filter_history_entries(entries: list[dict[str, object]], args: argparse.Name
     return filtered
 
 
+def emit_hermes_install_guidance(target: Path, *, scope: str, had_config: bool) -> None:
+    hermes_root = target / ".hermes"
+    snippet_path = hermes_root / "config.agent-learner.yaml"
+    readme_path = hermes_root / "AGENT_LEARNER_README.md"
+    if scope == "project":
+        print("[agent-learner] Hermes adapter installed in project-local opt-in mode.", file=sys.stderr)
+        if had_config:
+            print(
+                f"[agent-learner] Existing Hermes config preserved; review and merge {snippet_path} into the config you actually run.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"[agent-learner] Project-local Hermes config created at {hermes_root / 'config.yaml'}.",
+                file=sys.stderr,
+            )
+        print(f"[agent-learner] Safest activation: HERMES_HOME={hermes_root} hermes --accept-hooks", file=sys.stderr)
+        print("[agent-learner] Project-local HERMES_HOME must also have model/auth configured; otherwise merge the snippet into your normal Hermes config instead.", file=sys.stderr)
+        print(f"[agent-learner] Notes: {readme_path}", file=sys.stderr)
+        return
+
+    print("[agent-learner] Hermes user-scope hooks installed.", file=sys.stderr)
+    if had_config:
+        print(
+            f"[agent-learner] Existing Hermes config preserved; review and merge {snippet_path} into your active Hermes config.",
+            file=sys.stderr,
+        )
+    else:
+        print(f"[agent-learner] Hermes config created at {hermes_root / 'config.yaml'}.", file=sys.stderr)
+    print(f"[agent-learner] Notes: {readme_path}", file=sys.stderr)
+
+
+def resolve_install_target(*, target: str | None, scope: str) -> Path:
+    if target:
+        return Path(target).expanduser().resolve()
+    return Path.home() if scope == "user" else Path.cwd().resolve()
+
+
+def exit_for_removed_install_command(parser: argparse.ArgumentParser, command: str) -> None:
+    replacement = LEGACY_INSTALL_REPLACEMENTS[command]
+    parser.exit(
+        2,
+        f"[agent-learner] Error: `{command}` was removed. Use `{replacement}` instead.\n",
+    )
+
+
+def emit_bootstrap_summary(*, adapters: list[str], used_default_target: bool, scopes: dict[str, str]) -> None:
+    print(f"[agent-learner] Bootstrap installed adapters: {', '.join(adapters)}", file=sys.stderr)
+    if used_default_target and all(scopes.get(adapter) == "user" for adapter in adapters):
+        print(
+            "[agent-learner] Default bootstrap keeps everything in user scope unless you opt into project scope.",
+            file=sys.stderr,
+        )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-learner")
     sub = parser.add_subparsers(dest="command")
@@ -100,23 +164,19 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard_cmd.add_argument("--static", action="store_true")
     dashboard_cmd.add_argument("--open", action="store_true")
 
-    codex_cmd = sub.add_parser("install-codex")
-    codex_cmd.add_argument("--target")
-    codex_cmd.add_argument("--scope", choices=["project", "user"], default="user")
-
-    claude_cmd = sub.add_parser("install-claude")
-    claude_cmd.add_argument("--target")
-    claude_cmd.add_argument("--scope", choices=["project", "user"], default="user")
-
-    bootstrap_cmd = sub.add_parser("bootstrap")
-    bootstrap_cmd.add_argument("--target", default=".")
+    bootstrap_cmd = sub.add_parser(
+        "bootstrap",
+        description="One-command setup: installs codex, claude, and hermes in user scope by default. Advanced flags are only needed for custom targets or project-local wiring.",
+    )
+    bootstrap_cmd.add_argument("--target", help="Advanced: override the default install root")
     bootstrap_cmd.add_argument(
         "--adapters",
-        default="codex,claude",
-        help="Comma-separated adapter list: codex, claude",
+        default="codex,claude,hermes",
+        help="Advanced: limit bootstrap to a comma-separated subset such as hermes",
     )
-    bootstrap_cmd.add_argument("--codex-scope", choices=["project", "user"], default="project")
-    bootstrap_cmd.add_argument("--claude-scope", choices=["project", "user"], default="user")
+    bootstrap_cmd.add_argument("--codex-scope", choices=["project", "user"], default="user", help="Advanced: override Codex install scope")
+    bootstrap_cmd.add_argument("--claude-scope", choices=["project", "user"], default="user", help="Advanced: override Claude install scope")
+    bootstrap_cmd.add_argument("--hermes-scope", choices=["project", "user"], default="user", help="Advanced: override Hermes install scope")
 
     promote_cmd = sub.add_parser("promote-demo")
     promote_cmd.add_argument("--root", default=".agent-learner")
@@ -181,22 +241,26 @@ def build_parser() -> argparse.ArgumentParser:
     claude_smoke_cmd = sub.add_parser("qa-claude-smoke")
     claude_smoke_cmd.add_argument("--project-root", default=".")
 
+    hermes_smoke_cmd = sub.add_parser("qa-hermes-smoke")
+    hermes_smoke_cmd.add_argument("--project-root", default=".")
+    hermes_smoke_cmd.add_argument("--prompt", default="update hermes bootstrap wiring and keep tests green")
+
     capture_cmd = sub.add_parser("capture-event")
     capture_cmd.add_argument("--project-root", default=".")
-    capture_cmd.add_argument("--adapter", required=True, choices=["codex", "claude"])
+    capture_cmd.add_argument("--adapter", required=True, choices=["codex", "claude", "hermes"])
     capture_cmd.add_argument("--event-name", required=True)
     capture_cmd.add_argument("--session-id")
     capture_cmd.add_argument("--transcript-path")
 
     process_cmd = sub.add_parser("process-events")
     process_cmd.add_argument("--project-root", default=".")
-    process_cmd.add_argument("--adapter", choices=["codex", "claude"])
+    process_cmd.add_argument("--adapter", choices=["codex", "claude", "hermes"])
     process_cmd.add_argument("--limit", type=int)
     process_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     review_candidates_cmd = sub.add_parser("review-candidates")
     review_candidates_cmd.add_argument("--project-root", default=".")
-    review_candidates_cmd.add_argument("--adapter", choices=["codex", "claude"])
+    review_candidates_cmd.add_argument("--adapter", choices=["codex", "claude", "hermes"])
     review_candidates_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     review_candidate_cmd = sub.add_parser("review-candidate")
@@ -269,11 +333,24 @@ def build_parser() -> argparse.ArgumentParser:
     context_cmd.add_argument("--limit", type=int, default=3)
     context_cmd.add_argument("--token-budget", type=int, default=240)
     context_cmd.add_argument("--format", choices=["text", "json", "hook-json"], default="text")
+
+    hermes_context_cmd = sub.add_parser("render-hermes-context")
+    hermes_context_cmd.add_argument("--project-root", default=".")
+    hermes_context_cmd.add_argument("--prompt", required=True)
+    hermes_context_cmd.add_argument("--scope")
+    hermes_context_cmd.add_argument("--task-type")
+    hermes_context_cmd.add_argument("--file", action="append", dest="files", default=[])
+    hermes_context_cmd.add_argument("--limit", type=int, default=3)
+    hermes_context_cmd.add_argument("--token-budget", type=int, default=240)
+    hermes_context_cmd.add_argument("--format", choices=["text", "json", "hook-json"], default="text")
     return parser
 
 
 def main() -> int:
     parser = build_parser()
+    raw_args = sys.argv[1:]
+    if raw_args and raw_args[0] in LEGACY_INSTALL_REPLACEMENTS:
+        exit_for_removed_install_command(parser, raw_args[0])
     args = parser.parse_args()
     if args.command == "init":
         lifecycle = LearningLifecycle(Path(args.root))
@@ -318,29 +395,33 @@ def main() -> int:
             raise RuntimeError("uvicorn is not installed. Install with `pip install .[web]` or `uv sync --extra web`.") from exc
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")
         return 0
-    if args.command == "install-codex":
-        target = Path(args.target).expanduser().resolve() if args.target else (Path.home() if args.scope == "user" else Path.cwd().resolve())
-        written = install_codex_adapter_with_scope(target, scope=args.scope)
-        for path in written:
-            print(path)
-        return 0
-    if args.command == "install-claude":
-        target = Path(args.target).expanduser().resolve() if args.target else (Path.home() if args.scope == "user" else Path.cwd().resolve())
-        written = install_claude_adapter_with_scope(target, scope=args.scope)
-        for path in written:
-            print(path)
-        return 0
     if args.command == "bootstrap":
-        target = Path(args.target).resolve()
         adapters = [item.strip() for item in args.adapters.split(",") if item.strip()]
         written: list[Path] = []
+        hermes_requested = "hermes" in adapters
+        codex_target = resolve_install_target(target=args.target, scope=args.codex_scope)
+        claude_target = resolve_install_target(target=args.target, scope=args.claude_scope)
+        hermes_target = resolve_install_target(target=args.target, scope=args.hermes_scope)
+        hermes_had_config = (hermes_target / ".hermes" / "config.yaml").exists() if hermes_requested else False
         if "codex" in adapters:
-            written.extend(install_codex_adapter_with_scope(target, scope=args.codex_scope))
+            written.extend(install_codex_adapter_with_scope(codex_target, scope=args.codex_scope))
         if "claude" in adapters:
-            claude_target = Path.home() if args.claude_scope == "user" else target
             written.extend(install_claude_adapter_with_scope(claude_target, scope=args.claude_scope))
+        if hermes_requested:
+            written.extend(install_hermes_adapter_with_scope(hermes_target, scope=args.hermes_scope))
         for path in dict.fromkeys(written):
             print(path)
+        emit_bootstrap_summary(
+            adapters=adapters,
+            used_default_target=args.target is None,
+            scopes={
+                "codex": args.codex_scope,
+                "claude": args.claude_scope,
+                "hermes": args.hermes_scope,
+            },
+        )
+        if hermes_requested:
+            emit_hermes_install_guidance(hermes_target, scope=args.hermes_scope, had_config=hermes_had_config)
         return 0
     if args.command == "promote-demo":
         lifecycle = LearningLifecycle(Path(args.root))
@@ -741,6 +822,167 @@ def main() -> int:
             cleanup_dir.cleanup()
         return 0 if result.returncode == 0 else result.returncode
 
+    if args.command == "qa-hermes-smoke":
+        target = Path(args.project_root).resolve()
+        cleanup_dir: tempfile.TemporaryDirectory[str] | None = None
+        if str(target) == str(Path('.').resolve()):
+            cleanup_dir = tempfile.TemporaryDirectory(prefix="agent-learner-hermes-smoke-")
+            target = Path(cleanup_dir.name).resolve()
+        had_config_before_install = (target / ".hermes" / "config.yaml").exists()
+        install_hermes_adapter(target)
+        hermes_home = target / ".hermes"
+        transcript_path = hermes_home / "sessions" / "session_hermes-smoke-session.jsonl"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(json.dumps({"message": "Always keep Hermes learning rules short and reusable."}) + "\n", encoding="utf-8")
+        auto_script = hermes_home / "hooks" / "auto_session_learning.py"
+        prompt_script = hermes_home / "hooks" / "hermes_prompt_context.py"
+        lifecycle = LearningLifecycle(resolve_learning_root(target))
+        lifecycle.promote(
+            LearningRule(
+                name="hermes-smoke-rule",
+                rule="Keep Hermes bootstrap changes covered by tests.",
+                why="Hermes adapter changes need regression coverage.",
+                scope="hermes adapter",
+                good_pattern="Update bootstrap code and tests together.",
+                avoid_pattern="Change Hermes wiring without tests.",
+                summary="Keep Hermes bootstrap changes covered by tests.",
+                triggers=["hermes", "bootstrap", "tests"],
+                task_types=["cli"],
+                priority="high",
+                confidence="high",
+            )
+        )
+        env = dict(os.environ)
+        env["PATH"] = f"{Path(sys.executable).parent}:{env.get('PATH', '')}"
+        src_path = str(Path(__file__).resolve().parents[2])
+        env["PYTHONPATH"] = f"{src_path}:{env.get('PYTHONPATH', '')}" if env.get("PYTHONPATH") else src_path
+        env["HERMES_HOME"] = str(hermes_home)
+        auto_result = subprocess.run(
+            [sys.executable, str(auto_script)],
+            input=json.dumps(
+                {
+                    "cwd": str(target),
+                    "session_id": "hermes-smoke-session",
+                    "extra": {
+                        "summary": "Always keep Hermes learning rules short and reusable.",
+                    },
+                }
+            ),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        prompt_result = subprocess.run(
+            [sys.executable, str(prompt_script)],
+            input=json.dumps(
+                {
+                    "cwd": str(target),
+                    "session_id": "hermes-smoke-session",
+                    "extra": {
+                        "user_message": args.prompt,
+                    },
+                }
+            ),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        runtime: dict[str, object] = {"available": False}
+        hermes_cli = shutil.which("hermes")
+        if hermes_cli:
+            runtime["available"] = True
+            hooks_list = subprocess.run([hermes_cli, "hooks", "list"], capture_output=True, text=True, check=False, env=env, cwd=target)
+            hooks_doctor = subprocess.run([hermes_cli, "hooks", "doctor"], capture_output=True, text=True, check=False, env=env, cwd=target)
+            pre_payload_file = hermes_home / "pre_llm_payload.json"
+            pre_payload_file.write_text(
+                json.dumps({
+                    "session_id": "hermes-smoke-session",
+                    "cwd": str(target),
+                    "user_message": args.prompt,
+                }, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            end_payload_file = hermes_home / "on_session_end_payload.json"
+            end_payload_file.write_text(
+                json.dumps({
+                    "session_id": "hermes-smoke-session",
+                    "cwd": str(target),
+                    "summary": "Always keep Hermes learning rules short and reusable.",
+                }, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            hooks_test_pre = subprocess.run(
+                [hermes_cli, "hooks", "test", "pre_llm_call", "--payload-file", str(pre_payload_file)],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                cwd=target,
+            )
+            hooks_test_end = subprocess.run(
+                [hermes_cli, "hooks", "test", "on_session_end", "--payload-file", str(end_payload_file)],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                cwd=target,
+            )
+            runtime.update(
+                {
+                    "hooks_list_returncode": hooks_list.returncode,
+                    "hooks_list_stdout": hooks_list.stdout.strip(),
+                    "hooks_doctor_returncode": hooks_doctor.returncode,
+                    "hooks_doctor_stdout": hooks_doctor.stdout.strip(),
+                    "hooks_test_pre_returncode": hooks_test_pre.returncode,
+                    "hooks_test_pre_stdout": hooks_test_pre.stdout.strip(),
+                    "hooks_test_end_returncode": hooks_test_end.returncode,
+                    "hooks_test_end_stdout": hooks_test_end.stdout.strip(),
+                }
+            )
+        event_files = sorted((target / ".agent-learner" / "events" / "hermes").glob("*.json"))
+        candidate_files = sorted((target / ".agent-learner" / "candidates" / "hermes").glob("*.md"))
+        rule_files = sorted((target / ".agent-learner" / "learning" / "approved").glob("*.md"))
+        prompt_payload = None
+        prompt_stdout = prompt_result.stdout.strip()
+        if prompt_stdout:
+            try:
+                prompt_payload = json.loads(prompt_stdout)
+            except json.JSONDecodeError:
+                prompt_payload = {"raw": prompt_stdout}
+        activation_hint = f"HERMES_HOME={hermes_home} hermes --accept-hooks"
+        merge_hint = f"Review and merge {hermes_home / 'config.agent-learner.yaml'} into the Hermes config you actually run if you already maintain one."
+        config_created = not had_config_before_install
+        config_preserved = had_config_before_install
+        print(
+            json.dumps(
+                {
+                    "project_root": str(target),
+                    "hermes_home": str(hermes_home),
+                    "config_path": str(hermes_home / "config.yaml"),
+                    "config_created": config_created,
+                    "config_preserved": config_preserved,
+                    "activation_hint": activation_hint,
+                    "merge_hint": merge_hint,
+                    "auto_script": str(auto_script),
+                    "prompt_script": str(prompt_script),
+                    "auto_returncode": auto_result.returncode,
+                    "prompt_returncode": prompt_result.returncode,
+                    "event_files": [str(path) for path in event_files],
+                    "candidate_files": [str(path) for path in candidate_files],
+                    "rule_files": [str(path) for path in rule_files],
+                    "prompt_payload": prompt_payload,
+                    "runtime": runtime,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        if cleanup_dir is not None:
+            cleanup_dir.cleanup()
+        return 0 if auto_result.returncode == 0 and prompt_result.returncode == 0 else 1
+
     if args.command == "qa-codex-smoke":
         target = Path(args.project_root).resolve()
         cleanup_dir: tempfile.TemporaryDirectory[str] | None = None
@@ -846,6 +1088,27 @@ def main() -> int:
             limit=args.limit,
             token_budget=args.token_budget,
         )
+        if text:
+            print(text)
+        return 0
+    if args.command == "render-hermes-context":
+        project_root = Path(args.project_root).resolve()
+        text = render_codex_learning_context(
+            resolve_learning_root(project_root),
+            args.prompt,
+            scope=args.scope,
+            task_type=args.task_type,
+            file_paths=args.files,
+            limit=args.limit,
+            token_budget=args.token_budget,
+        )
+        if args.format == "hook-json":
+            if text:
+                print(json.dumps({"context": text}, ensure_ascii=False))
+            return 0
+        if args.format == "json":
+            print(json.dumps({"additional_context": text}, ensure_ascii=False, indent=2))
+            return 0
         if text:
             print(text)
         return 0

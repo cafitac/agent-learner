@@ -80,6 +80,7 @@ Expected:
 ```bash
 npx @cafitac/agent-learner doctor
 npx @cafitac/agent-learner dashboard --project-root /path/to/consumer-repo
+npx @cafitac/agent-learner bootstrap --adapters codex --target /path/to/consumer-repo
 ```
 
 Expected:
@@ -87,6 +88,7 @@ Expected:
 - wrapper launches
 - `doctor` reports a dashboard-oriented verdict/advice
 - `dashboard` delegates correctly into the Python core
+- `bootstrap --adapters codex` reaches the Python core and uses the bootstrap-only install path
 
 ## 4. Source checkout helper smoke (recommended)
 

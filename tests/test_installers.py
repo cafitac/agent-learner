@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from agent_learner.adapters import install_claude_adapter, install_codex_adapter
+from agent_learner.adapters import install_claude_adapter, install_codex_adapter, install_hermes_adapter
 from agent_learner.adapters.claude import install_claude_adapter_with_scope as install_claude_adapter_with_scope
 from agent_learner.adapters.codex import install_codex_adapter_with_scope
 from agent_learner.core.storage import read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
@@ -77,6 +77,35 @@ def test_install_claude_adapter_user_scope_creates_user_assets_only(tmp_path: Pa
     hook_cmd = settings["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
     assert str(home_root / ".claude" / "hooks" / "auto_session_learning.py") in hook_cmd
     assert settings["hooks"]["SessionEnd"][0]["hooks"][0]["timeout"] == 30
+
+
+def test_install_hermes_adapter_creates_expected_assets(tmp_path: Path) -> None:
+    written = install_hermes_adapter(tmp_path)
+    hermes_root = tmp_path / ".hermes"
+    assert (tmp_path / ".agent-learner" / "events" / "hermes").exists()
+    assert (hermes_root / "hooks" / "auto_session_learning.py").exists()
+    assert (hermes_root / "hooks" / "hermes_prompt_context.py").exists()
+    assert (hermes_root / "config.yaml").exists()
+    assert (hermes_root / "config.agent-learner.yaml").exists()
+    assert (hermes_root / "AGENT_LEARNER_README.md").exists()
+    assert not (tmp_path / ".codex").exists()
+    assert not (tmp_path / ".claude").exists()
+    assert written
+
+    config_text = (hermes_root / "config.yaml").read_text(encoding="utf-8")
+    auto_script = (hermes_root / "hooks" / "auto_session_learning.py").read_text(encoding="utf-8")
+    prompt_script = (hermes_root / "hooks" / "hermes_prompt_context.py").read_text(encoding="utf-8")
+    assert "pre_llm_call" in config_text
+    assert "on_session_end" in config_text
+    assert "./.hermes/hooks/hermes_prompt_context.py" in config_text
+    assert "./.hermes/hooks/auto_session_learning.py" in config_text
+    assert '--adapter", "hermes"' in auto_script
+    assert '--event-name' in auto_script
+    assert '"process-events", "--project-root", str(project_root), "--adapter", "hermes", "--limit", "1"' in auto_script
+    assert "session_{session_id}.json" in auto_script
+    assert 'extra.get("user_message")' in prompt_script
+    assert 'render-hermes-context' in prompt_script
+    assert '--adapter", "hermes"' not in prompt_script
 
 
 def test_installers_are_independent(tmp_path: Path) -> None:

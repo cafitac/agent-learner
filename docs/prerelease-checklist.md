@@ -53,6 +53,7 @@ Then verify:
 ```bash
 npx @cafitac/agent-learner@next version
 npx @cafitac/agent-learner@next doctor
+npx @cafitac/agent-learner@next bootstrap --adapters codex --target /path/to/consumer-repo
 AGENT_LEARNER_UVX_INDEX_URL=https://test.pypi.org/simple \
 AGENT_LEARNER_UVX_EXTRA_ARGS="--refresh --with fastapi<1 --with uvicorn<1 --index-strategy unsafe-best-match" \
   npx @cafitac/agent-learner@next core --help
