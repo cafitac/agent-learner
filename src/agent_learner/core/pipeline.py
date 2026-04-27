@@ -906,7 +906,56 @@ def read_transcript_text(path: Path) -> str:
             if isinstance(payload, dict):
                 lines.extend(extract_text_values(payload))
         return "\n".join(lines)
+    if path.suffix == ".json":
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return raw
+        lines = extract_transcript_messages(payload)
+        return "\n".join(line for line in lines if line.strip())
     return raw
+
+
+def extract_transcript_messages(payload: object) -> list[str]:
+    if isinstance(payload, list):
+        lines: list[str] = []
+        for item in payload:
+            lines.extend(extract_transcript_messages(item))
+        return lines
+    if not isinstance(payload, dict):
+        return []
+
+    role = str(payload.get("role") or "").strip().lower()
+    lines: list[str] = []
+    if role in {"user", "assistant"}:
+        lines.extend(extract_transcript_content(payload.get("content")))
+        lines.extend(extract_transcript_messages(payload.get("codex_message_items")))
+        return lines
+
+    for key in ("messages", "conversation", "history", "items"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            lines.extend(extract_transcript_messages(value))
+    return lines
+
+
+def extract_transcript_content(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, list):
+        lines: list[str] = []
+        for item in value:
+            lines.extend(extract_transcript_content(item))
+        return lines
+    if isinstance(value, dict):
+        text = value.get("text")
+        if isinstance(text, str) and text.strip():
+            return [text]
+        for key in ("content", "parts"):
+            nested = value.get(key)
+            if nested is not None:
+                return extract_transcript_content(nested)
+    return []
 
 
 def find_rule_like_excerpt(corpus: str) -> str | None:
