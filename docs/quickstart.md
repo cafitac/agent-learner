@@ -54,12 +54,37 @@ Docker is optional convenience only. The primary path is still `agent-learner da
 
 ```bash
 agent-learner rebuild-index --project-root "$PWD"
-agent-learner bootstrap --target /path/to/consumer-repo
+agent-learner bootstrap
 agent-learner review-candidates --project-root /path/to/consumer-repo
 agent-learner history --project-root /path/to/consumer-repo --latest-per-rule --last 10
 agent-learner history-summary --project-root /path/to/consumer-repo --by adapter-decision
 agent-learner overview --project-root /path/to/consumer-repo --format json
 ```
+
+## Hermes experimental quickstart
+
+If you want to try the Hermes adapter specifically, use the bootstrap path:
+
+```bash
+agent-learner bootstrap --adapters hermes
+agent-learner render-hermes-context --project-root "$PWD" --prompt "update hermes bootstrap wiring and keep tests green"
+agent-learner render-hermes-context --project-root "$PWD" --prompt "update hermes bootstrap wiring and keep tests green" --format hook-json
+agent-learner qa-hermes-smoke
+```
+
+If you explicitly want an isolated project-local Hermes home instead:
+
+```bash
+agent-learner bootstrap --adapters hermes --hermes-scope project --target "$PWD"
+HERMES_HOME=.hermes hermes --accept-hooks
+```
+
+Notes:
+- Hermes is still marked experimental.
+- Default `bootstrap` now installs `codex,claude,hermes`.
+- Hermes default install scope is `user`.
+- The installer writes `~/.hermes/config.agent-learner.yaml` and `~/.hermes/AGENT_LEARNER_README.md` so existing Hermes users can merge hook entries safely.
+- `qa-hermes-smoke` now checks direct script output plus `hermes hooks list/doctor/test` runtime wiring.
 
 ## If you are validating a release
 
@@ -76,10 +101,9 @@ Then follow `docs/publish-smoke-checklist.md`.
 Common wrapper aliases now work directly:
 
 ```bash
-agent-learner install-codex --target "$PWD"
-agent-learner install-claude --target "$PWD"
 agent-learner rebuild-index --project-root "$PWD"
-agent-learner bootstrap --target "$PWD"
+agent-learner bootstrap
+agent-learner bootstrap --adapters hermes
 agent-learner update
 agent-learner completion zsh
 ```

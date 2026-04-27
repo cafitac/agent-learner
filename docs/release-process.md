@@ -28,6 +28,7 @@ Run the real user-facing smoke paths in this order:
 1. `pipx install "agent-learner[web]"` -> `agent-learner doctor` -> `agent-learner dashboard`
 2. `uvx --from "agent-learner[web]" agent-learner doctor`
 3. `npx @cafitac/agent-learner doctor`
+4. `npx @cafitac/agent-learner bootstrap --adapters codex --target /path/to/consumer-repo`
 
 Use `docs/publish-smoke-checklist.md` for the exact matrix and optional paths.
 

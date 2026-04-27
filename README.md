@@ -59,7 +59,9 @@ Docker is optional convenience only. It is not the primary OSS install path.
 
 ## Typical workflow
 
-1. Install the Codex hook once at user scope or per project
+1. Install the adapter you want to use first
+   - Codex is the most established path
+   - Hermes is available as an explicit experimental opt-in
 2. Run `doctor`
 3. Open the dashboard
 4. Review rules, candidates, and history
@@ -97,16 +99,20 @@ Static dashboard generation and stdlib-only serving still exist, but they are se
 ```bash
 agent-learner doctor --project-root /path/to/repo
 agent-learner dashboard --project-root /path/to/repo --open
-agent-learner install-codex
-agent-learner bootstrap --target /path/to/repo
+agent-learner bootstrap
+agent-learner bootstrap --adapters hermes
 agent-learner review-candidates --project-root /path/to/repo
 agent-learner history --project-root /path/to/repo --latest-per-rule --last 10
 agent-learner history-summary --project-root /path/to/repo --by adapter-decision
 agent-learner overview --project-root /path/to/repo --format json
 agent-learner rebuild-index --project-root /path/to/repo
-agent-learner install-codex --target /path/to/repo
 agent-learner update
 ```
+
+Bootstrap note:
+- `agent-learner bootstrap` is now the only install entrypoint
+- default `bootstrap` installs `codex,claude,hermes`
+- use `agent-learner bootstrap --adapters hermes` if you only want Hermes
 
 ## Repository shape
 
@@ -151,6 +157,7 @@ Current implemented areas:
 - dashboard UI
 - global promotion and sync
 - npm wrapper + source checkout helper
+- Hermes experimental adapter with user-scope config.yaml-based hook wiring and runtime smoke coverage
 
 ## Release note
 
@@ -175,10 +182,9 @@ Then follow `docs/publish-smoke-checklist.md`.
 Common wrapper aliases now work directly:
 
 ```bash
-agent-learner install-codex --target "$PWD"
-agent-learner install-claude --target "$PWD"
 agent-learner rebuild-index --project-root "$PWD"
-agent-learner bootstrap --target "$PWD"
+agent-learner bootstrap
+agent-learner bootstrap --adapters hermes
 agent-learner update
 agent-learner completion zsh
 ```

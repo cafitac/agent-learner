@@ -68,6 +68,7 @@ class LearningCandidate:
 class ProcessedEventResult:
     event_path: str
     status: str
+    source_adapter: str | None = None
     candidate_path: str | None = None
     rule_path: str | None = None
     reason: str | None = None
@@ -322,6 +323,7 @@ def process_unprocessed_events(project_root: Path, adapter: str | None = None, l
             ProcessedEventResult(
                 event_path=str(event_path),
                 status=status,
+                source_adapter=event.adapter,
                 candidate_path=str(candidate_path) if candidate_path else None,
                 rule_path=str(rule_path) if rule_path else None,
                 reason=None if candidate is not None else "no durable rule-like signal found",

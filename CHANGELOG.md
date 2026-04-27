@@ -6,6 +6,10 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+### Changed
+- Removed the legacy `install-codex`, `install-claude`, and `install-hermes` CLI commands. `agent-learner bootstrap` is now the only install entrypoint, with `--adapters` and per-adapter scope flags handling selective setup.
+- npm wrapper help, completion, and lane install forwarding now point to `bootstrap` instead of the removed top-level `install-*` aliases.
+
 ## [0.3.22] - 2026-04-25
 
 ### Fixed

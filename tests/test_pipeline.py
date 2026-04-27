@@ -64,6 +64,33 @@ def test_process_events_extracts_candidate_from_transcript_and_marks_processed(t
     assert second == []
 
 
+def test_process_events_extracts_hermes_candidate_from_transcript(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(json.dumps({"message": "Always keep Hermes learning rules short and reusable."}) + "\n", encoding="utf-8")
+    event_path = write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="hermes-123",
+            transcript_path=str(transcript),
+            payload={"message": "session ended"},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert len(results) == 1
+    assert results[0].status == "rule_promoted"
+    assert results[0].source_adapter == "hermes"
+    assert results[0].candidate_path is not None
+    assert results[0].rule_path is not None
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "auto_applied"
+    assert candidate_record.candidate.review_required is False
+    assert is_processed(tmp_path, event_path)
+
+
 def test_extract_candidate_returns_none_without_rule_signal(tmp_path: Path) -> None:
     event_path = write_learning_event(
         tmp_path,

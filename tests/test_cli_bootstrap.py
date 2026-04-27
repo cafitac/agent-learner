@@ -1,10 +1,12 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
 from agent_learner.core.dashboard import build_dashboard_summary, merge_rules
 from agent_learner.core.fastapi_app import app_root_dir, frontend_dist_dir, frontend_src_dir, frontend_dist_is_valid
-from agent_learner.cli.main import main as cli_main
+from agent_learner.cli.main import build_parser, main as cli_main
 from agent_learner.core.lifecycle import LearningLifecycle
 from agent_learner.core.models import LearningRule
 from agent_learner.core.webapp import apply_web_action, render_dashboard_app_html, run_dashboard_server
@@ -13,7 +15,7 @@ from agent_learner.core.webapp import apply_web_action, render_dashboard_app_htm
 def test_bootstrap_codex_only(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         "sys.argv",
-        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "codex"],
+        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "codex", "--codex-scope", "project"],
     )
     assert cli_main() == 0
     assert (tmp_path / ".codex" / "hooks.json").exists()
@@ -21,26 +23,33 @@ def test_bootstrap_codex_only(monkeypatch, tmp_path: Path) -> None:
     assert not (tmp_path / ".claude").exists()
 
 
-def test_install_codex_user_scope_writes_to_home(monkeypatch, tmp_path: Path) -> None:
+def test_bootstrap_codex_user_scope_writes_to_home(monkeypatch, tmp_path: Path) -> None:
     home_root = tmp_path / "home"
     monkeypatch.setattr(
         "sys.argv",
-        ["agent-learner", "install-codex", "--scope", "user", "--target", str(home_root)],
+        ["agent-learner", "bootstrap", "--adapters", "codex", "--codex-scope", "user", "--target", str(home_root)],
     )
     assert cli_main() == 0
     assert (home_root / ".codex" / "hooks.json").exists()
     assert not (home_root / ".agent-learner" / "learning").exists()
 
 
-def test_install_codex_defaults_to_user_scope(monkeypatch, tmp_path: Path) -> None:
-    home_root = tmp_path / "home-default"
-    monkeypatch.setattr(
-        "sys.argv",
-        ["agent-learner", "install-codex", "--target", str(home_root)],
-    )
-    assert cli_main() == 0
-    assert (home_root / ".codex" / "hooks.json").exists()
-    assert not (home_root / ".agent-learner" / "learning").exists()
+@pytest.mark.parametrize(
+    ("command", "replacement"),
+    [
+        ("install-codex", "bootstrap --adapters codex"),
+        ("install-claude", "bootstrap --adapters claude"),
+        ("install-hermes", "bootstrap --adapters hermes"),
+    ],
+)
+def test_removed_install_commands_point_to_bootstrap(monkeypatch, capsys, command: str, replacement: str) -> None:
+    monkeypatch.setattr("sys.argv", ["agent-learner", command])
+    with pytest.raises(SystemExit) as exc:
+        cli_main()
+    assert exc.value.code == 2
+    stderr = capsys.readouterr().err
+    assert f"`{command}` was removed" in stderr
+    assert replacement in stderr
 
 
 def test_doctor_command_reports_status(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -70,14 +79,115 @@ def test_bootstrap_claude_only(monkeypatch, tmp_path: Path) -> None:
     assert not (tmp_path / ".codex").exists()
 
 
-def test_bootstrap_both(monkeypatch, tmp_path: Path) -> None:
+def test_bootstrap_hermes_project_scope_creates_project_assets(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setattr(
         "sys.argv",
-        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--claude-scope", "project"],
+        ["agent-learner", "bootstrap", "--adapters", "hermes", "--hermes-scope", "project", "--target", str(tmp_path)],
     )
     assert cli_main() == 0
-    assert (tmp_path / ".codex" / "hooks.json").exists()
-    assert (tmp_path / ".claude" / "settings.json").exists()
+    assert (tmp_path / ".agent-learner" / "events" / "hermes").exists()
+    assert (tmp_path / ".hermes" / "hooks" / "auto_session_learning.py").exists()
+    assert (tmp_path / ".hermes" / "hooks" / "hermes_prompt_context.py").exists()
+    assert (tmp_path / ".hermes" / "config.yaml").exists()
+    assert (tmp_path / ".hermes" / "config.agent-learner.yaml").exists()
+    assert not (tmp_path / ".codex").exists()
+    assert not (tmp_path / ".claude").exists()
+    stderr = capsys.readouterr().err
+    assert "Hermes adapter installed in project-local opt-in mode" in stderr
+    assert "Safest activation:" in stderr
+    assert "HERMES_HOME=" in stderr
+    assert "must also have model/auth configured" in stderr
+
+
+def test_bootstrap_hermes_project_scope_preserves_existing_config_and_prints_merge_guidance(monkeypatch, tmp_path: Path, capsys) -> None:
+    hermes_root = tmp_path / ".hermes"
+    hermes_root.mkdir(parents=True, exist_ok=True)
+    config_path = hermes_root / "config.yaml"
+    config_path.write_text("model:\n  provider: openai-codex\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "bootstrap", "--adapters", "hermes", "--hermes-scope", "project", "--target", str(tmp_path)],
+    )
+    assert cli_main() == 0
+    assert config_path.read_text(encoding="utf-8") == "model:\n  provider: openai-codex\n"
+    stderr = capsys.readouterr().err
+    assert "Existing Hermes config preserved" in stderr
+    assert "config.agent-learner.yaml" in stderr
+
+
+def test_bootstrap_defaults_to_all_three_user_scope(monkeypatch, tmp_path: Path, capsys) -> None:
+    home_root = tmp_path / "home-bootstrap"
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home_root))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "bootstrap"],
+    )
+    assert cli_main() == 0
+    assert (home_root / ".codex" / "hooks.json").exists()
+    assert (home_root / ".claude" / "settings.json").exists()
+    assert (home_root / ".hermes" / "config.yaml").exists()
+    assert not (home_root / ".agent-learner" / "events").exists()
+    stderr = capsys.readouterr().err
+    assert "Bootstrap installed adapters: codex, claude, hermes" in stderr
+    assert "Default bootstrap keeps everything in user scope unless you opt into project scope." in stderr
+
+
+def test_bootstrap_hermes_only_defaults_to_user_scope(monkeypatch, tmp_path: Path, capsys) -> None:
+    home_root = tmp_path / "home-hermes-bootstrap"
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home_root))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "bootstrap", "--adapters", "hermes"],
+    )
+    assert cli_main() == 0
+    assert (home_root / ".hermes" / "hooks" / "auto_session_learning.py").exists()
+    assert not (home_root / ".agent-learner").exists()
+    assert not (home_root / ".codex").exists()
+    assert not (home_root / ".claude").exists()
+    stderr = capsys.readouterr().err
+    assert "Hermes user-scope hooks installed" in stderr
+    assert "project-local opt-in" not in stderr
+
+
+def test_bootstrap_hermes_preserves_existing_config_and_prints_merge_guidance(monkeypatch, tmp_path: Path, capsys) -> None:
+    hermes_root = tmp_path / ".hermes"
+    hermes_root.mkdir(parents=True, exist_ok=True)
+    config_path = hermes_root / "config.yaml"
+    config_path.write_text("model:\n  provider: openai-codex\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "hermes"],
+    )
+    assert cli_main() == 0
+    assert config_path.read_text(encoding="utf-8") == "model:\n  provider: openai-codex\n"
+    stderr = capsys.readouterr().err
+    assert "Existing Hermes config preserved" in stderr
+    assert "config.agent-learner.yaml" in stderr
+
+
+def test_bootstrap_help_emphasizes_one_command_default_and_labels_advanced_flags(capsys) -> None:
+    parser = build_parser()
+    try:
+        parser.parse_args(["bootstrap", "--help"])
+    except SystemExit as exc:
+        assert exc.code == 0
+    help_text = capsys.readouterr().out
+    assert "One-command setup:" in help_text
+    assert "installs codex, claude, and hermes in user scope by" in help_text
+    assert "default" in help_text
+    assert "advanced" in help_text.lower()
+    assert "--target TARGET" in help_text
+    assert "--hermes-scope {project,user}" in help_text
+
+
+def test_removed_install_commands_are_not_in_parser(capsys) -> None:
+    parser = build_parser()
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["install-hermes"])
+    assert exc.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "invalid choice" in stderr
+    assert "install-hermes" in stderr
 
 
 def test_bootstrap_migrates_legacy_codex_learning_assets(monkeypatch, tmp_path: Path) -> None:
@@ -89,7 +199,7 @@ def test_bootstrap_migrates_legacy_codex_learning_assets(monkeypatch, tmp_path: 
     )
     monkeypatch.setattr(
         "sys.argv",
-        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "codex"],
+        ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "codex", "--codex-scope", "project"],
     )
     assert cli_main() == 0
     assert (tmp_path / ".agent-learner" / "learning" / "approved" / "legacy-rule.md").exists()
@@ -131,6 +241,44 @@ def test_render_codex_context_command_outputs_hook_json(monkeypatch, tmp_path: P
     payload = json.loads(capsys.readouterr().out)
     assert payload["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
     assert "active_learning" in payload["hookSpecificOutput"]["additionalContext"]
+
+
+def test_render_hermes_context_command_outputs_json(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle.promote(
+        LearningRule(
+            name="hermes-tests-updated",
+            rule="Update Hermes tests whenever bootstrap behavior changes.",
+            why="Hermes bootstrap wiring should stay regression-tested.",
+            scope="hermes adapter",
+            good_pattern="Edit Hermes bootstrap code and tests together.",
+            avoid_pattern="Change Hermes wiring without tests.",
+            summary="Keep Hermes bootstrap changes covered by tests.",
+            triggers=["hermes", "bootstrap", "tests"],
+            task_types=["cli"],
+            priority="high",
+            confidence="high",
+        )
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "agent-learner",
+            "render-hermes-context",
+            "--project-root",
+            str(tmp_path),
+            "--prompt",
+            "update hermes bootstrap wiring and tests",
+            "--format",
+            "json",
+        ],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "additional_context" in payload
+    assert "active_learning" in payload["additional_context"]
+    assert "hermes-tests-updated" in payload["additional_context"]
 
 
 def test_retrieve_command_outputs_ranked_rules(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -219,6 +367,31 @@ def test_capture_event_command_writes_normalized_event(monkeypatch, tmp_path: Pa
     assert payload["payload"]["prompt"] == "hello"
 
 
+def test_capture_event_command_writes_hermes_session_end(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "agent-learner",
+            "capture-event",
+            "--project-root",
+            str(tmp_path),
+            "--adapter",
+            "hermes",
+            "--event-name",
+            "session_end",
+            "--session-id",
+            "session-hermes-1",
+        ],
+    )
+    monkeypatch.setattr("sys.stdin", __import__("io").StringIO('{"summary":"Always keep Hermes rules concise."}'))
+    assert cli_main() == 0
+    out_path = Path(capsys.readouterr().out.strip())
+    payload = json.loads(out_path.read_text(encoding="utf-8"))
+    assert payload["adapter"] == "hermes"
+    assert payload["event_name"] == "session_end"
+    assert payload["payload"]["summary"] == "Always keep Hermes rules concise."
+
+
 def test_process_events_command_outputs_candidate_json(monkeypatch, tmp_path: Path, capsys) -> None:
     transcript = tmp_path / "session.jsonl"
     transcript.write_text(json.dumps({"message": "Always keep learned rules concise."}) + "\n", encoding="utf-8")
@@ -241,6 +414,31 @@ def test_process_events_command_outputs_candidate_json(monkeypatch, tmp_path: Pa
     assert cli_main() == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload[0]["status"] == "rule_promoted"
+
+
+def test_process_events_command_outputs_hermes_candidate_json(monkeypatch, tmp_path: Path, capsys) -> None:
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(json.dumps({"message": "Always keep Hermes learning rules concise and reusable."}) + "\n", encoding="utf-8")
+    event_dir = tmp_path / ".agent-learner" / "events" / "hermes"
+    event_dir.mkdir(parents=True, exist_ok=True)
+    event_path = event_dir / "session_end-h1.json"
+    event_path.write_text(json.dumps({
+        "adapter": "hermes",
+        "event_name": "session_end",
+        "cwd": str(tmp_path),
+        "captured_at": "2026-04-20T00:00:00Z",
+        "session_id": "h1",
+        "transcript_path": str(transcript),
+        "payload": {"message": "done"}
+    }))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "process-events", "--project-root", str(tmp_path), "--adapter", "hermes", "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[0]["status"] == "rule_promoted"
+    assert payload[0]["source_adapter"] == "hermes"
 
 
 def test_review_candidates_and_approve_candidate_commands(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -880,6 +1078,29 @@ def test_qa_claude_smoke_creates_event_and_candidate(monkeypatch, capsys) -> Non
     assert payload["returncode"] == 0
     assert payload["event_files"]
     assert payload["candidate_files"]
+
+
+def test_qa_hermes_smoke_creates_event_candidate_and_prompt_context(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.argv", ["agent-learner", "qa-hermes-smoke"])
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["auto_returncode"] == 0
+    assert payload["prompt_returncode"] == 0
+    assert payload["event_files"]
+    assert payload["candidate_files"]
+    assert payload["rule_files"]
+    assert payload["config_path"].endswith("/.hermes/config.yaml")
+    assert payload["config_created"] is True
+    assert payload["config_preserved"] is False
+    assert payload["activation_hint"].startswith("HERMES_HOME=")
+    assert payload["activation_hint"].endswith(" hermes --accept-hooks")
+    assert "config.agent-learner.yaml" in payload["merge_hint"]
+    assert payload["prompt_payload"]["context"]
+    assert "active_learning" in payload["prompt_payload"]["context"]
+    if payload["runtime"]["available"]:
+        assert payload["runtime"]["hooks_list_returncode"] == 0
+        assert payload["runtime"]["hooks_test_pre_returncode"] == 0
+        assert payload["runtime"]["hooks_test_end_returncode"] == 0
 
 
 def test_detect_context_set_model_and_sweep_commands(monkeypatch, tmp_path: Path, capsys) -> None:

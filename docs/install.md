@@ -100,22 +100,24 @@ or required OSS installation path.
 
 ## Codex adapter
 
+Primary install path for Codex only:
+
 ```bash
-agent-learner install-codex --target /path/to/consumer-repo
+agent-learner bootstrap --adapters codex --target /path/to/consumer-repo
 ```
 
-By default, `install-codex` installs the Codex hook once for your user-level
+By default, `bootstrap --adapters codex` installs the Codex hook once for your user-level
 Codex home so every project can learn into its own local `.agent-learner/`
 tree automatically:
 
 ```bash
-agent-learner install-codex
+agent-learner bootstrap --adapters codex
 ```
 
 If you want the older repo-local hook install, opt into it explicitly:
 
 ```bash
-agent-learner install-codex --scope project --target /path/to/consumer-repo
+agent-learner bootstrap --adapters codex --codex-scope project --target /path/to/consumer-repo
 ```
 
 This creates:
@@ -162,8 +164,10 @@ agent-learner qa-codex-smoke
 
 ## Claude adapter
 
+Primary install path for Claude only:
+
 ```bash
-agent-learner install-claude --target /path/to/consumer-repo
+agent-learner bootstrap --adapters claude --target /path/to/consumer-repo
 ```
 
 This creates:
@@ -172,21 +176,101 @@ This creates:
 - `.claude/skills/session-wrap/`
 - `.claude/skills/feedback-learning/`
 
+## Hermes adapter (experimental)
+
+Hermes support is currently experimental, but the default install path is now user scope so
+it matches Codex and Claude.
+
+Recommended path:
+
+```bash
+agent-learner bootstrap
+```
+
+If you only want Hermes instead of the full default bootstrap set:
+
+```bash
+agent-learner bootstrap --adapters hermes
+```
+
+This creates user-scope Hermes hook assets under `~/.hermes/`:
+- `~/.hermes/config.yaml` when it does not already exist
+- `~/.hermes/config.agent-learner.yaml`
+- `~/.hermes/AGENT_LEARNER_README.md`
+- `~/.hermes/hooks/auto_session_learning.py`
+- `~/.hermes/hooks/hermes_prompt_context.py`
+
+The Hermes adapter wires two real Hermes shell hooks:
+- `pre_llm_call` -> retrieve compact learned guidance with `render-hermes-context`
+- `on_session_end` -> capture a normalized `session_end` event and process it through the shared pipeline
+
+Safe activation model:
+- user-scope install reuses the Hermes config and model/auth you already run
+- `config.yaml` is only created automatically when missing
+- `config.agent-learner.yaml` is always written as a mergeable snippet for existing Hermes setups
+- `AGENT_LEARNER_README.md` explains the generated files and merge path
+
+If you already maintain your own Hermes config, review and merge the hook entries from
+`~/.hermes/config.agent-learner.yaml` into the config you actually run.
+
+If you explicitly want an isolated project-local Hermes home instead, that path is still available:
+
+```bash
+agent-learner bootstrap --adapters hermes --hermes-scope project --target /path/to/consumer-repo
+HERMES_HOME=/path/to/consumer-repo/.hermes hermes --accept-hooks
+```
+
+Preview the learned prompt injection locally:
+
+```bash
+agent-learner render-hermes-context \
+  --project-root /path/to/consumer-repo \
+  --prompt "update hermes bootstrap wiring and keep tests green"
+```
+
+For the actual Hermes hook wire shape:
+
+```bash
+agent-learner render-hermes-context \
+  --project-root /path/to/consumer-repo \
+  --prompt "update hermes bootstrap wiring and keep tests green" \
+  --format hook-json
+```
+
+This prints Hermes-compatible JSON like `{"context": "..."}` for `pre_llm_call`.
+
+Run the Hermes smoke path:
+
+```bash
+agent-learner qa-hermes-smoke
+```
+
+The smoke now verifies both direct script execution and real Hermes runtime wiring with
+`hermes hooks list`, `hermes hooks doctor`, and `hermes hooks test` in an isolated project.
+
+If you want Hermes-only onboarding instead of the default bootstrap:
+
+```bash
+agent-learner bootstrap --adapters hermes
+```
+
 ## One-command onboarding
 
 ```bash
-agent-learner bootstrap --target /path/to/consumer-repo
+agent-learner bootstrap
 ```
 
 Default adapters:
 - codex
 - claude
+- hermes
 
 Customize if needed:
 
 ```bash
-agent-learner bootstrap --target /path/to/consumer-repo --adapters codex
-agent-learner bootstrap --target /path/to/consumer-repo --adapters claude
+agent-learner bootstrap --adapters codex
+agent-learner bootstrap --adapters claude
+agent-learner bootstrap --adapters hermes
 ```
 
 ## Independence guarantee
@@ -287,11 +371,10 @@ These commands verify the expected adapter files/directories exist after install
 Common wrapper aliases now work directly:
 
 ```bash
-agent-learner install-codex --target "$PWD"
-agent-learner install-codex
-agent-learner install-claude --target "$PWD"
+agent-learner bootstrap
+agent-learner bootstrap --adapters codex
+agent-learner bootstrap --adapters hermes
 agent-learner rebuild-index --project-root "$PWD"
-agent-learner bootstrap --target "$PWD"
 agent-learner update
 agent-learner completion zsh
 ```
