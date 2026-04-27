@@ -27,8 +27,8 @@ After inspecting the current local environments:
 - prompt-time context injection via the real Hermes `pre_llm_call` shell hook
 - session-end capture via the real Hermes `on_session_end` shell hook and normalized `session_end` events
 - shared retrieval and event-processing core reused instead of adding a Hermes-specific learner
-- current recommended rollout is explicit opt-in and project scope first
-- installer writes a project-local `config.yaml` only when missing and always emits a mergeable `config.agent-learner.yaml` snippet for fail-safe adoption
+- current recommended rollout is explicit opt-in, with user-scope bootstrap now validated against live Hermes runtime and project scope still available for isolated opt-in verification
+- installer writes `config.yaml` only when missing, auto-merges required hooks into an existing user-scope active config with backup, and still emits `config.agent-learner.yaml` as a re-sync snippet
 
 ## Principle
 
