@@ -293,6 +293,11 @@ class LearningLifecycle:
             last_validated_by=str(metadata.get("last_validated_by") or "") or None,
             learning_scope=str(metadata.get("learning_scope") or "project"),
             source_project=str(metadata.get("source_project") or "") or None,
+            harness=str(metadata.get("harness") or "universal"),
+            success_count=int(metadata.get("success_count") or 0),
+            fail_count=int(metadata.get("fail_count") or 0),
+            needs_review=bool(metadata.get("needs_review") or False),
+            verify_cmd=str(metadata.get("verify_cmd") or ""),
         )
         rule.ensure_defaults()
         return rule
@@ -397,6 +402,11 @@ class LearningLifecycle:
             "last_validated_by": rule.last_validated_by or "",
             "learning_scope": rule.learning_scope,
             "source_project": rule.source_project or "",
+            "harness": rule.harness,
+            "success_count": rule.success_count,
+            "fail_count": rule.fail_count,
+            "needs_review": rule.needs_review,
+            "verify_cmd": rule.verify_cmd,
             "scope": rule.scope,
             "tags": rule.tags,
             "triggers": rule.triggers,
