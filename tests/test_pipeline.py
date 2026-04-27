@@ -91,6 +91,89 @@ def test_process_events_extracts_hermes_candidate_from_transcript(tmp_path: Path
     assert is_processed(tmp_path, event_path)
 
 
+def test_extract_candidate_ignores_hermes_session_metadata_and_tool_schema(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "system_prompt": "Memory is injected into every turn. Always save durable facts.",
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "memory",
+                            "description": "Always save durable facts when needed.",
+                        },
+                    }
+                ],
+                "message_count": 2,
+                "messages": [
+                    {"role": "user", "content": "Say OK only"},
+                    {"role": "assistant", "content": "OK"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    event_path = write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="hermes-json-1",
+            transcript_path=str(transcript),
+            payload={"message": "session ended"},
+        ),
+    )
+
+    event = load_learning_event(event_path)
+    candidate = extract_candidate_from_event(tmp_path, event_path, event)
+    assert candidate is None
+
+
+def test_extract_candidate_reads_rule_signal_from_hermes_session_messages(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "system_prompt": "Memory is injected into every turn. Always save durable facts.",
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "memory",
+                            "description": "Always save durable facts when needed.",
+                        },
+                    }
+                ],
+                "message_count": 2,
+                "messages": [
+                    {"role": "user", "content": "Summarize the outcome."},
+                    {"role": "assistant", "content": "Always keep Hermes learning rules short and reusable."},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    event_path = write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="hermes-json-2",
+            transcript_path=str(transcript),
+            payload={"message": "session ended"},
+        ),
+    )
+
+    event = load_learning_event(event_path)
+    candidate = extract_candidate_from_event(tmp_path, event_path, event)
+    assert candidate is not None
+    assert candidate.suggested_rule == "Always keep Hermes learning rules short and reusable."
+
+
 def test_extract_candidate_returns_none_without_rule_signal(tmp_path: Path) -> None:
     event_path = write_learning_event(
         tmp_path,
