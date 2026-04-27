@@ -185,20 +185,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     capture_cmd = sub.add_parser("capture-event")
     capture_cmd.add_argument("--project-root", default=".")
-    capture_cmd.add_argument("--adapter", required=True, choices=["codex", "claude"])
+    capture_cmd.add_argument("--adapter", required=True, choices=["codex", "claude", "hermit"])
     capture_cmd.add_argument("--event-name", required=True)
     capture_cmd.add_argument("--session-id")
     capture_cmd.add_argument("--transcript-path")
 
-    process_cmd = sub.add_parser("process-events")
+    process_cmd = sub.add_parser("process-events", aliases=["process"])
     process_cmd.add_argument("--project-root", default=".")
-    process_cmd.add_argument("--adapter", choices=["codex", "claude"])
+    process_cmd.add_argument("--adapter", choices=["codex", "claude", "hermit"])
     process_cmd.add_argument("--limit", type=int)
     process_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     review_candidates_cmd = sub.add_parser("review-candidates")
     review_candidates_cmd.add_argument("--project-root", default=".")
-    review_candidates_cmd.add_argument("--adapter", choices=["codex", "claude"])
+    review_candidates_cmd.add_argument("--adapter", choices=["codex", "claude", "hermit"])
     review_candidates_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     review_candidate_cmd = sub.add_parser("review-candidate")
