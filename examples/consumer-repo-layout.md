@@ -3,7 +3,7 @@
 After running:
 
 ```bash
-agent-learner bootstrap --target /path/to/consumer-repo
+agent-learner bootstrap
 ```
 
 you should expect a consumer repo layout similar to:
