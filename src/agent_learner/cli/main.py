@@ -110,8 +110,13 @@ def emit_hermes_install_guidance(target: Path, *, scope: str, had_config: bool) 
 
     print("[agent-learner] Hermes user-scope hooks installed.", file=sys.stderr)
     if had_config:
+        backup_path = hermes_root / "config.yaml.agent-learner.bak"
         print(
-            f"[agent-learner] Existing Hermes config preserved; review and merge {snippet_path} into your active Hermes config.",
+            f"[agent-learner] Existing Hermes config preserved and agent-learner hooks merged into your active Hermes config. Backup: {backup_path}",
+            file=sys.stderr,
+        )
+        print(
+            f"[agent-learner] Review snippet for future re-syncs: {snippet_path}",
             file=sys.stderr,
         )
     else:

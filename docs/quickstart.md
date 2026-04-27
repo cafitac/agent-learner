@@ -83,7 +83,7 @@ Notes:
 - Hermes is still marked experimental.
 - Default `bootstrap` now installs `codex,claude,hermes`.
 - Hermes default install scope is `user`.
-- The installer writes `~/.hermes/config.agent-learner.yaml` and `~/.hermes/AGENT_LEARNER_README.md` so existing Hermes users can merge hook entries safely.
+- The installer writes `~/.hermes/config.agent-learner.yaml` and `~/.hermes/AGENT_LEARNER_README.md`, and now auto-merges the hook entries into an existing `~/.hermes/config.yaml` after creating a backup.
 - `qa-hermes-smoke` now checks direct script output plus `hermes hooks list/doctor/test` runtime wiring.
 
 ## If you are validating a release
