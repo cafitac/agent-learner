@@ -1,0 +1,19 @@
+{
+  "adapter": "codex",
+  "event_name": "stop",
+  "cwd": "/Users/reddit/Project/agent-learner",
+  "captured_at": "2026-04-23T05:42:39Z",
+  "session_id": "019db855-b2cc-7141-9cb6-5d9b6e93583b",
+  "transcript_path": null,
+  "payload": {
+    "session_id": "019db855-b2cc-7141-9cb6-5d9b6e93583b",
+    "turn_id": "019db8da-9e9a-7e43-aa4f-4673fe13635d",
+    "transcript_path": "/Users/reddit/.codex/sessions/2026/04/23/rollout-2026-04-23T12-15-17-019db855-b2cc-7141-9cb6-5d9b6e93583b.jsonl",
+    "cwd": "/Users/reddit/Project/agent-learner",
+    "hook_event_name": "Stop",
+    "model": "gpt-5.4",
+    "permission_mode": "bypassPermissions",
+    "stop_hook_active": false,
+    "last_assistant_message": "남은 것까지 끝냈습니다.\n\n`0.3.19`로 배포 완료됐고, 이번 릴리스 핵심은:\n- 자동 승격 기본 전략 유지\n- `review_required=True`면 실제로 자동 적용되지 않도록 수정\n- 운영/디버깅성 note는 **첫 번째는 candidate queue**, **반복되면 자동 승격**으로 보정\n- 이후 승격된 rule은 기존대로 `sweep`/`deprecated` 흐름 유지\n\n배포 상태:\n- `release` 성공\n- `pypi-publish` 성공\n- `npm-publish` 성공\n\n관련 커밋:\n- `306764d` `Keep exception notes from auto-promoting on first sight`\n\n검증:\n- `python3 -m pytest tests/test_pipeline.py tests/test_installers.py tests/test_cli_bootstrap.py -q`\n- `node --test test/wrapper.test.cjs`\n- `python3 scripts/release/release_check.py --version 0.3.19`\n\n이제 로컬에서 최신으로 쓰려면:\n```bash\nnpm install -g @cafitac/agent-learner@0.3.19\nagent-learner install-codex\n```\n\n한 가지 참고:\n- 이 세션 중간에 `~/.codex`는 현재 소스 기준으로 한 번 정상화해둔 상태입니다.\n- 그래서 지금은 로컬도 이미 동작하지만, 글로벌 패키지도 `0.3.19`로 맞춰두면 이후 재설치/재현이 깔끔해집니다.\n\n"
+  }
+}

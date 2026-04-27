@@ -4,6 +4,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
 
+@dataclass(slots=True)
+class ModelPerf:
+    """Per-model performance tracking for a learning rule."""
+    use_count: int = 0
+    success_count: int = 0
+    fail_count: int = 0
+
+    @property
+    def success_rate(self) -> float:
+        total = self.success_count + self.fail_count
+        return self.success_count / total if total > 0 else 0.0
+
+
 RuleStatus = Literal["draft", "approved", "needs_review", "deprecated"]
 RulePriority = Literal["low", "medium", "high"]
 RuleConfidence = Literal["low", "medium", "high"]
@@ -65,6 +78,13 @@ class LearningRule:
     last_validated_by: str | None = None
     learning_scope: LearningScope = "project"
     source_project: str | None = None
+    # v2 performance tracking
+    success_count: int = 0
+    fail_count: int = 0
+    needs_review: bool = False
+    verify_cmd: str = ""
+    model_performance: dict[str, ModelPerf] = field(default_factory=dict)
+    harness: str = "universal"
 
     def ensure_defaults(self) -> None:
         if not self.summary:
