@@ -207,11 +207,13 @@ The Hermes adapter wires two real Hermes shell hooks:
 Safe activation model:
 - user-scope install reuses the Hermes config and model/auth you already run
 - `config.yaml` is only created automatically when missing
-- `config.agent-learner.yaml` is always written as a mergeable snippet for existing Hermes setups
+- if `~/.hermes/config.yaml` already exists, bootstrap now backs it up and automatically merges the `pre_llm_call` and `on_session_end` hook entries into the active config
+- `~/.hermes/config.yaml.agent-learner.bak` stores the pre-merge backup when an existing config is updated
+- `config.agent-learner.yaml` is still written as a re-sync/reference snippet for existing Hermes setups
 - `AGENT_LEARNER_README.md` explains the generated files and merge path
 
-If you already maintain your own Hermes config, review and merge the hook entries from
-`~/.hermes/config.agent-learner.yaml` into the config you actually run.
+This means the normal user-scope path is now one command: install with `bootstrap`, then run Hermes.
+You only need to inspect `~/.hermes/config.agent-learner.yaml` if you want to review or re-sync the generated hook snippet manually.
 
 If you explicitly want an isolated project-local Hermes home instead, that path is still available:
 

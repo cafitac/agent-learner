@@ -248,6 +248,7 @@ ROOT_GITIGNORE_LINES = [
 ]
 
 CONFIG_SNIPPET_HEADER = "# agent-learner hermes hooks snippet\n"
+CONFIG_BACKUP_NAME = "config.yaml.agent-learner.bak"
 ACTIVATION_NOTES = """# Agent Learner + Hermes
 
 This directory contains a project-local Hermes home for agent-learner hooks.
@@ -278,6 +279,10 @@ def _command_for_script(script_path: Path, *, scope: str) -> str:
 
 
 def _render_config_yaml(*, prompt_command: str, auto_command: str) -> str:
+    return _render_hooks_block(prompt_command=prompt_command, auto_command=auto_command) + "hooks_auto_accept: false\n"
+
+
+def _render_hooks_block(*, prompt_command: str, auto_command: str) -> str:
     return (
         "hooks:\n"
         "  pre_llm_call:\n"
@@ -286,8 +291,94 @@ def _render_config_yaml(*, prompt_command: str, auto_command: str) -> str:
         "  on_session_end:\n"
         f"    - command: {auto_command!r}\n"
         "      timeout: 15\n"
-        "hooks_auto_accept: false\n"
     )
+
+
+def _merge_hooks_section(existing_text: str, *, prompt_command: str, auto_command: str) -> str:
+    lines = existing_text.splitlines()
+    desired = {
+        "pre_llm_call": [f"    - command: {prompt_command!r}", "      timeout: 15"],
+        "on_session_end": [f"    - command: {auto_command!r}", "      timeout: 15"],
+    }
+    if not lines:
+        return _render_hooks_block(prompt_command=prompt_command, auto_command=auto_command).rstrip("\n")
+    if len(lines) == 1 and lines[0].strip() == "hooks: {}":
+        return _render_hooks_block(prompt_command=prompt_command, auto_command=auto_command).rstrip("\n")
+
+    merged: list[str] = ["hooks:"]
+    index = 1
+    seen_events: set[str] = set()
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        if line.startswith("  ") and not line.startswith("    ") and stripped.endswith(":"):
+            event = stripped[:-1]
+            start = index
+            index += 1
+            while index < len(lines):
+                next_line = lines[index]
+                next_stripped = next_line.strip()
+                if next_line.startswith("  ") and not next_line.startswith("    ") and next_stripped.endswith(":"):
+                    break
+                index += 1
+            block = lines[start:index]
+            block_text = "\n".join(block)
+            addition = desired.get(event)
+            if addition and addition[0] not in block_text:
+                block = block + addition
+            merged.extend(block)
+            seen_events.add(event)
+            continue
+        index += 1
+
+    for event in ("pre_llm_call", "on_session_end"):
+        if event in seen_events:
+            continue
+        merged.append(f"  {event}:")
+        merged.extend(desired[event])
+    return "\n".join(merged)
+
+
+def _merge_user_config(config_path: Path, *, prompt_command: str, auto_command: str) -> Path | None:
+    original = config_path.read_text(encoding="utf-8")
+    backup_path = config_path.with_name(CONFIG_BACKUP_NAME)
+    lines = original.splitlines()
+    top_level_indexes: list[tuple[str, int]] = []
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")) and ":" in stripped:
+            top_level_indexes.append((stripped.split(":", 1)[0], idx))
+
+    sections: dict[str, tuple[int, int]] = {}
+    for offset, (key, start) in enumerate(top_level_indexes):
+        end = top_level_indexes[offset + 1][1] if offset + 1 < len(top_level_indexes) else len(lines)
+        sections[key] = (start, end)
+
+    existing_hooks_text = ""
+    if "hooks" in sections:
+        start, end = sections["hooks"]
+        existing_hooks_text = "\n".join(lines[start:end])
+    hooks_block = _merge_hooks_section(existing_hooks_text, prompt_command=prompt_command, auto_command=auto_command)
+
+    if "hooks" in sections:
+        start, end = sections["hooks"]
+        new_lines = lines[:start] + hooks_block.splitlines() + lines[end:]
+    else:
+        new_lines = lines + ([""] if lines and lines[-1].strip() else []) + hooks_block.splitlines()
+
+    if not any(line.startswith("hooks_auto_accept:") for line in new_lines):
+        if new_lines and new_lines[-1].strip():
+            new_lines.append("")
+        new_lines.append("hooks_auto_accept: false")
+
+    merged_text = "\n".join(new_lines).rstrip("\n") + "\n"
+    if merged_text == original:
+        return backup_path if backup_path.exists() else None
+    backup_path.write_text(original, encoding="utf-8")
+    config_path.write_text(merged_text, encoding="utf-8")
+    return backup_path
 
 
 def _write_config_files(hermes_root: Path, *, scope: str, prompt_script: Path, auto_script: Path) -> list[Path]:
@@ -300,6 +391,10 @@ def _write_config_files(hermes_root: Path, *, scope: str, prompt_script: Path, a
 
     if not config_path.exists():
         written.append(write_text(config_path, config_text))
+    elif scope == "user":
+        backup_path = _merge_user_config(config_path, prompt_command=prompt_command, auto_command=auto_command)
+        if backup_path is not None:
+            written.append(backup_path)
     written.append(write_text(snippet_path, CONFIG_SNIPPET_HEADER + config_text))
     written.append(write_text(hermes_root / "AGENT_LEARNER_README.md", ACTIVATION_NOTES))
     return written

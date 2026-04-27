@@ -4,6 +4,7 @@ from pathlib import Path
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter, install_hermes_adapter
 from agent_learner.adapters.claude import install_claude_adapter_with_scope as install_claude_adapter_with_scope
 from agent_learner.adapters.codex import install_codex_adapter_with_scope
+from agent_learner.adapters.hermes import install_hermes_adapter_with_scope
 from agent_learner.core.storage import read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
 
 
@@ -106,6 +107,36 @@ def test_install_hermes_adapter_creates_expected_assets(tmp_path: Path) -> None:
     assert 'extra.get("user_message")' in prompt_script
     assert 'render-hermes-context' in prompt_script
     assert '--adapter", "hermes"' not in prompt_script
+
+
+def test_install_hermes_user_scope_merges_hooks_into_existing_config_without_duplicates(tmp_path: Path) -> None:
+    hermes_root = tmp_path / ".hermes"
+    hermes_root.mkdir(parents=True, exist_ok=True)
+    config_path = hermes_root / "config.yaml"
+    config_path.write_text(
+        "model:\n"
+        "  provider: openai-codex\n"
+        "hooks:\n"
+        "  pre_llm_call:\n"
+        "    - command: 'python existing-hook.py'\n"
+        "      timeout: 5\n"
+        "hooks_auto_accept: false\n",
+        encoding="utf-8",
+    )
+
+    first_written = install_hermes_adapter_with_scope(tmp_path, scope="user")
+    second_written = install_hermes_adapter_with_scope(tmp_path, scope="user")
+
+    config_text = config_path.read_text(encoding="utf-8")
+    assert "provider: openai-codex" in config_text
+    assert "python existing-hook.py" in config_text
+    assert config_text.count("hermes_prompt_context.py") == 1
+    assert config_text.count("auto_session_learning.py") == 1
+    assert "hooks_auto_accept: false" in config_text
+    assert (hermes_root / "config.agent-learner.yaml").exists()
+    assert (hermes_root / "config.yaml.agent-learner.bak").exists()
+    assert first_written
+    assert second_written
 
 
 def test_installers_are_independent(tmp_path: Path) -> None:

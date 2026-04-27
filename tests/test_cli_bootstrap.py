@@ -149,19 +149,24 @@ def test_bootstrap_hermes_only_defaults_to_user_scope(monkeypatch, tmp_path: Pat
     assert "project-local opt-in" not in stderr
 
 
-def test_bootstrap_hermes_preserves_existing_config_and_prints_merge_guidance(monkeypatch, tmp_path: Path, capsys) -> None:
+def test_bootstrap_hermes_preserves_existing_config_and_auto_merges_hooks(monkeypatch, tmp_path: Path, capsys) -> None:
     hermes_root = tmp_path / ".hermes"
     hermes_root.mkdir(parents=True, exist_ok=True)
     config_path = hermes_root / "config.yaml"
-    config_path.write_text("model:\n  provider: openai-codex\n", encoding="utf-8")
+    config_path.write_text("model:\n  provider: openai-codex\nhooks: {}\n", encoding="utf-8")
     monkeypatch.setattr(
         "sys.argv",
         ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "hermes"],
     )
     assert cli_main() == 0
-    assert config_path.read_text(encoding="utf-8") == "model:\n  provider: openai-codex\n"
+    config_text = config_path.read_text(encoding="utf-8")
+    assert "provider: openai-codex" in config_text
+    assert "pre_llm_call" in config_text
+    assert "on_session_end" in config_text
+    assert (hermes_root / "config.yaml.agent-learner.bak").exists()
     stderr = capsys.readouterr().err
-    assert "Existing Hermes config preserved" in stderr
+    assert "Hermes user-scope hooks installed" in stderr
+    assert "merged into your active Hermes config" in stderr
     assert "config.agent-learner.yaml" in stderr
 
 
