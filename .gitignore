@@ -13,3 +13,8 @@ node_modules/
 frontend/node_modules/
 .idea/
 *.tgz
+.agent-learner/learning/inbox/
+.agent-learner/history/
+.agent-learner/events/
+.agent-learner/candidates/
+.agent-learner/state/
