@@ -486,6 +486,52 @@ def test_review_candidates_and_approve_candidate_commands(monkeypatch, tmp_path:
     assert "field_diffs" in payload
 
 
+def test_review_candidates_command_filters_hermes_candidates(monkeypatch, tmp_path: Path, capsys) -> None:
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {"role": "user", "content": "Always keep Hermes learning rules concise and reusable."},
+                    {"role": "assistant", "content": "Noted."},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    event_dir = tmp_path / ".agent-learner" / "events" / "hermes"
+    event_dir.mkdir(parents=True, exist_ok=True)
+    (event_dir / "session_end-h1.json").write_text(
+        json.dumps(
+            {
+                "adapter": "hermes",
+                "event_name": "session_end",
+                "cwd": str(tmp_path),
+                "captured_at": "2026-04-20T00:00:00Z",
+                "session_id": "h1",
+                "transcript_path": str(transcript),
+                "payload": {"message": "done"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("sys.argv", ["agent-learner", "process-events", "--project-root", str(tmp_path), "--adapter", "hermes"])
+    assert cli_main() == 0
+    _ = capsys.readouterr()
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "review-candidates", "--project-root", str(tmp_path), "--adapter", "hermes", "--format", "json"],
+    )
+    assert cli_main() == 0
+    records = json.loads(capsys.readouterr().out)
+    assert len(records) == 1
+    assert records[0]["adapter"] == "hermes"
+    assert records[0]["source_event_path"].endswith("session_end-h1.json")
+
+
+
 def test_history_command_filters_entries(monkeypatch, tmp_path: Path, capsys) -> None:
     transcript = tmp_path / "session.jsonl"
     transcript.write_text(json.dumps({"message": "Always keep tests updated in services."}) + "\n", encoding="utf-8")
@@ -536,6 +582,51 @@ def test_history_command_filters_entries(monkeypatch, tmp_path: Path, capsys) ->
     assert filtered
     assert all(entry["decision"] == "new_rule" for entry in filtered)
     assert all(entry["derived_from_candidate"] == candidate_name for entry in filtered)
+
+
+def test_history_command_filters_hermes_entries(monkeypatch, tmp_path: Path, capsys) -> None:
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {"role": "user", "content": "Always keep Hermes learning rules concise and reusable."},
+                    {"role": "assistant", "content": "Noted."},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    event_dir = tmp_path / ".agent-learner" / "events" / "hermes"
+    event_dir.mkdir(parents=True, exist_ok=True)
+    (event_dir / "session_end-h1.json").write_text(
+        json.dumps(
+            {
+                "adapter": "hermes",
+                "event_name": "session_end",
+                "cwd": str(tmp_path),
+                "captured_at": "2026-04-20T00:00:00Z",
+                "session_id": "h1",
+                "transcript_path": str(transcript),
+                "payload": {"message": "done"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("sys.argv", ["agent-learner", "process-events", "--project-root", str(tmp_path), "--adapter", "hermes"])
+    assert cli_main() == 0
+    _ = capsys.readouterr()
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "history", "--project-root", str(tmp_path), "--adapter", "hermes", "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload
+    assert all(entry["source_adapter"] == "hermes" for entry in payload)
+    assert all("session_end-h1.json" in entry["source_event"] for entry in payload)
 
 
 def test_history_command_supports_latest_per_rule(monkeypatch, tmp_path: Path, capsys) -> None:
