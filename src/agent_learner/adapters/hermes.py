@@ -296,14 +296,19 @@ def _render_hooks_block(*, prompt_command: str, auto_command: str) -> str:
 
 def _merge_hooks_section(existing_text: str, *, prompt_command: str, auto_command: str) -> str:
     lines = existing_text.splitlines()
-    desired = {
-        "pre_llm_call": [f"    - command: {prompt_command!r}", "      timeout: 15"],
-        "on_session_end": [f"    - command: {auto_command!r}", "      timeout: 15"],
+    desired_commands = {
+        "pre_llm_call": prompt_command,
+        "on_session_end": auto_command,
     }
     if not lines:
         return _render_hooks_block(prompt_command=prompt_command, auto_command=auto_command).rstrip("\n")
     if len(lines) == 1 and lines[0].strip() == "hooks: {}":
         return _render_hooks_block(prompt_command=prompt_command, auto_command=auto_command).rstrip("\n")
+
+    def _render_entry(command: str, *, compact: bool) -> list[str]:
+        if compact:
+            return [f"  - command: {command!r}", "    timeout: 15"]
+        return [f"    - command: {command!r}", "      timeout: 15"]
 
     merged: list[str] = ["hooks:"]
     index = 1
@@ -323,9 +328,13 @@ def _merge_hooks_section(existing_text: str, *, prompt_command: str, auto_comman
                 index += 1
             block = lines[start:index]
             block_text = "\n".join(block)
-            addition = desired.get(event)
-            if addition and addition[0] not in block_text:
-                block = block + addition
+            command = desired_commands.get(event)
+            if command:
+                compact = any(existing_line.startswith("  - ") for existing_line in block[1:])
+                command_match = f"command: {command!r}"
+                command_match_alt = f"command: {command}"
+                if command_match not in block_text and command_match_alt not in block_text:
+                    block = block + _render_entry(command, compact=compact)
             merged.extend(block)
             seen_events.add(event)
             continue
@@ -335,7 +344,7 @@ def _merge_hooks_section(existing_text: str, *, prompt_command: str, auto_comman
         if event in seen_events:
             continue
         merged.append(f"  {event}:")
-        merged.extend(desired[event])
+        merged.extend(_render_entry(desired_commands[event], compact=False))
     return "\n".join(merged)
 
 

@@ -139,6 +139,32 @@ def test_install_hermes_user_scope_merges_hooks_into_existing_config_without_dup
     assert second_written
 
 
+def test_install_hermes_user_scope_preserves_compact_yaml_hook_indentation(tmp_path: Path) -> None:
+    hermes_root = tmp_path / ".hermes"
+    hermes_root.mkdir(parents=True, exist_ok=True)
+    config_path = hermes_root / "config.yaml"
+    config_path.write_text(
+        "model:\n"
+        "  provider: openai-codex\n"
+        "hooks:\n"
+        "  pre_llm_call:\n"
+        "  - command: /tmp/existing_prompt.py\n"
+        "    timeout: 5\n"
+        "hooks_auto_accept: false\n",
+        encoding="utf-8",
+    )
+
+    install_hermes_adapter_with_scope(tmp_path, scope="user")
+    install_hermes_adapter_with_scope(tmp_path, scope="user")
+
+    config_text = config_path.read_text(encoding="utf-8")
+    assert config_text.count("hermes_prompt_context.py") == 1
+    assert config_text.count("auto_session_learning.py") == 1
+    assert "  - command: /tmp/existing_prompt.py" in config_text
+    assert config_text.count("  - command: /tmp/existing_prompt.py") == 1
+    assert "    - command: '/tmp/existing_prompt.py'" not in config_text
+
+
 def test_installers_are_independent(tmp_path: Path) -> None:
     install_codex_adapter(tmp_path)
     assert not (tmp_path / ".claude").exists()
