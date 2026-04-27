@@ -228,6 +228,89 @@ def test_process_events_refreshes_existing_rule_and_writes_ledger(tmp_path: Path
     assert refreshed.derived_from_candidate is not None
 
 
+def test_process_events_refreshes_existing_hermes_rule_from_real_runtime_phrase(tmp_path: Path) -> None:
+    promote_rule(
+        tmp_path,
+        name="keep-hermes-learning-rules-concise",
+        rule="Keep Hermes learning rules concise and reusable.",
+        summary="Keep Hermes learning rules concise and reusable.",
+        scope="hermes adapter event:session_end",
+    )
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "When generating durable learning candidates, keep them concise and reusable. Say OK only.",
+                    },
+                    {"role": "assistant", "content": "OK"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="hermes-real-phrase-1",
+            transcript_path=str(transcript),
+            payload={"message": "done"},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].status == "rule_refreshed"
+    assert results[0].decision == "refresh_existing"
+    assert results[0].matched_rule == "keep-hermes-learning-rules-concise"
+
+
+
+def test_process_events_does_not_refresh_unrelated_concise_and_reusable_rule(tmp_path: Path) -> None:
+    promote_rule(
+        tmp_path,
+        name="keep-hermes-learning-rules-concise",
+        rule="Keep Hermes learning rules concise and reusable.",
+        summary="Keep Hermes learning rules concise and reusable.",
+        scope="hermes adapter event:session_end",
+    )
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Keep deployment logs concise and reusable. Say OK only.",
+                    },
+                    {"role": "assistant", "content": "OK"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="hermes-real-phrase-2",
+            transcript_path=str(transcript),
+            payload={"message": "done"},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].decision != "refresh_existing"
+    assert results[0].matched_rule != "keep-hermes-learning-rules-concise"
+
+
+
 def test_process_events_keeps_revision_candidate_in_queue_when_review_required(tmp_path: Path) -> None:
     promote_rule(
         tmp_path,

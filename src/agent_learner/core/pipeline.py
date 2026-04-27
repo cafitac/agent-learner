@@ -773,6 +773,8 @@ def classify_text_diff(left: str, right: str) -> str:
     normalized_right = normalize_compare_text(right)
     if normalized_left == normalized_right:
         return "unchanged"
+    if semantic_rule_text_equivalent(left, right):
+        return "unchanged"
     left_tokens = tokenize_for_compare(left)
     right_tokens = tokenize_for_compare(right)
     if set(left_tokens).issubset(set(right_tokens)):
@@ -785,13 +787,63 @@ def classify_text_diff(left: str, right: str) -> str:
 
 
 def rule_similarity(candidate: LearningCandidate, rule: LearningRule) -> float:
+    if semantic_rule_text_equivalent(candidate.suggested_rule, rule.rule):
+        return 0.9
     candidate_tokens = set(tokenize_for_compare(" ".join([candidate.suggested_rule, candidate.summary, candidate.scope])))
     rule_tokens = set(tokenize_for_compare(" ".join([rule.rule, rule.summary, rule.scope, " ".join(rule.triggers), " ".join(rule.task_types)])))
     if not candidate_tokens or not rule_tokens:
         return 0.0
     overlap = len(candidate_tokens & rule_tokens)
     union = len(candidate_tokens | rule_tokens)
-    return overlap / union if union else 0.0
+    similarity = overlap / union if union else 0.0
+    candidate_core = imperative_signature_tokens(candidate.suggested_rule)
+    rule_core = imperative_signature_tokens(rule.rule)
+    if candidate_core and rule_core and candidate_core[0] == rule_core[0] and candidate_core[-2:] == rule_core[-2:]:
+        candidate_middle = set(candidate_core[1:-2])
+        rule_middle = set(rule_core[1:-2])
+        if candidate_middle and rule_middle and candidate_middle.isdisjoint(rule_middle):
+            return min(similarity, 0.44)
+    return similarity
+
+
+def semantic_rule_text_equivalent(left: str, right: str) -> bool:
+    left_signature = imperative_signature_tokens(left)
+    right_signature = imperative_signature_tokens(right)
+    if len(left_signature) < 3 or len(right_signature) < 3:
+        return False
+    if left_signature[0] != right_signature[0]:
+        return False
+    if left_signature[-2:] != right_signature[-2:]:
+        return False
+    return has_contextual_pronoun_or_lead_in(left) or has_contextual_pronoun_or_lead_in(right)
+
+
+def has_contextual_pronoun_or_lead_in(text: str) -> bool:
+    normalized = compact_text(text, 220)
+    clause = extract_imperative_clause(text)
+    if clause != normalized:
+        return True
+    return any(token in {"them", "it", "this", "that", "these", "those"} for token in tokenize_for_compare(clause))
+
+
+def imperative_signature_tokens(text: str) -> list[str]:
+    clause = extract_imperative_clause(text)
+    raw_tokens = tokenize_for_compare(clause)
+    return [token for token in raw_tokens if token not in STOPWORDS and token not in GENERIC_REJECTION_TERMS and token not in {"them", "it", "this", "that", "these", "those"}]
+
+
+LEAD_IN_CONDITION_TERMS = {"when", "while", "if", "after", "before", "during", "once"}
+
+
+def extract_imperative_clause(text: str) -> str:
+    cleaned = compact_text(text, 220)
+    if not cleaned:
+        return cleaned
+    prefix, separator, suffix = cleaned.partition(",")
+    prefix_tokens = tokenize_for_compare(prefix)
+    if separator and prefix_tokens and prefix_tokens[0] in LEAD_IN_CONDITION_TERMS:
+        return suffix.strip() or cleaned
+    return cleaned
 
 
 def has_negation_conflict(left: str, right: str) -> bool:
