@@ -10,8 +10,9 @@ import webbrowser
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter
-from agent_learner.adapters.claude import install_claude_adapter_with_scope
-from agent_learner.adapters.codex import install_codex_adapter_with_scope
+from agent_learner.adapters.claude import install_claude_adapter_with_scope, install_claude_hooks
+from agent_learner.adapters.codex import install_codex_adapter_with_scope, install_codex_hooks
+from agent_learner.adapters.hermit import install_hermit_hooks
 from agent_learner.adapters.codex_context import (
     build_codex_user_prompt_hook_output,
     format_retrieval_results_as_json,
@@ -113,10 +114,11 @@ def build_parser() -> argparse.ArgumentParser:
     bootstrap_cmd.add_argument(
         "--adapters",
         default="codex,claude",
-        help="Comma-separated adapter list: codex, claude",
+        help="Comma-separated adapter list: codex, claude, hermit, or 'auto' to detect from existing dirs",
     )
     bootstrap_cmd.add_argument("--codex-scope", choices=["project", "user"], default="project")
     bootstrap_cmd.add_argument("--claude-scope", choices=["project", "user"], default="user")
+    bootstrap_cmd.add_argument("--hermit-scope", choices=["project", "user"], default="project")
 
     promote_cmd = sub.add_parser("promote-demo")
     promote_cmd.add_argument("--root", default=".agent-learner")
@@ -183,20 +185,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     capture_cmd = sub.add_parser("capture-event")
     capture_cmd.add_argument("--project-root", default=".")
-    capture_cmd.add_argument("--adapter", required=True, choices=["codex", "claude"])
+    capture_cmd.add_argument("--adapter", required=True, choices=["codex", "claude", "hermit"])
     capture_cmd.add_argument("--event-name", required=True)
     capture_cmd.add_argument("--session-id")
     capture_cmd.add_argument("--transcript-path")
 
-    process_cmd = sub.add_parser("process-events")
+    process_cmd = sub.add_parser("process-events", aliases=["process"])
     process_cmd.add_argument("--project-root", default=".")
-    process_cmd.add_argument("--adapter", choices=["codex", "claude"])
+    process_cmd.add_argument("--adapter", choices=["codex", "claude", "hermit"])
     process_cmd.add_argument("--limit", type=int)
     process_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     review_candidates_cmd = sub.add_parser("review-candidates")
     review_candidates_cmd.add_argument("--project-root", default=".")
-    review_candidates_cmd.add_argument("--adapter", choices=["codex", "claude"])
+    review_candidates_cmd.add_argument("--adapter", choices=["codex", "claude", "hermit"])
     review_candidates_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     review_candidate_cmd = sub.add_parser("review-candidate")
@@ -332,13 +334,32 @@ def main() -> int:
         return 0
     if args.command == "bootstrap":
         target = Path(args.target).resolve()
-        adapters = [item.strip() for item in args.adapters.split(",") if item.strip()]
+        adapters_raw = args.adapters
+
+        # Auto-detect harnesses present in target directory
+        if adapters_raw == "auto":
+            detected: list[str] = []
+            if (target / ".hermit").is_dir():
+                detected.append("hermit")
+            if (target / ".claude").is_dir():
+                detected.append("claude")
+            if (target / ".codex").is_dir():
+                detected.append("codex")
+            adapters = detected
+        else:
+            adapters = [item.strip() for item in adapters_raw.split(",") if item.strip()]
+
         written: list[Path] = []
+        if "hermit" in adapters:
+            hermit_target = Path.home() if args.hermit_scope == "user" else target
+            written.append(install_hermit_hooks(hermit_target, scope=args.hermit_scope))
         if "codex" in adapters:
             written.extend(install_codex_adapter_with_scope(target, scope=args.codex_scope))
+            written.append(install_codex_hooks(target, scope=args.codex_scope))
         if "claude" in adapters:
             claude_target = Path.home() if args.claude_scope == "user" else target
             written.extend(install_claude_adapter_with_scope(claude_target, scope=args.claude_scope))
+            written.append(install_claude_hooks(claude_target, scope=args.claude_scope))
         for path in dict.fromkeys(written):
             print(path)
         return 0

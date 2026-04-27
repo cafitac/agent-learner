@@ -61,3 +61,44 @@ def merge_lists(existing: list, incoming: list) -> list:
             result.append(item)
             seen.add(key)
     return result
+
+
+def is_agent_learner_hook(hook: dict) -> bool:
+    """Check whether a hook entry was installed by agent-learner."""
+    return "agent-learner" in hook.get("command", "")
+
+
+def upsert_hook(settings_path: Path, event_name: str, command: str) -> Path:
+    """Idempotently install or update an agent-learner hook in a JSON settings file.
+
+    - Creates the file and parent directories if they do not exist.
+    - Replaces an existing agent-learner hook under *event_name* if found.
+    - Appends a new hook entry otherwise.
+    - Preserves all other hooks.
+    """
+    ensure_dir(settings_path.parent)
+
+    if settings_path.exists():
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+    else:
+        data = {}
+
+    hooks = data.setdefault("hooks", {})
+    event_hooks: list[dict] = hooks.setdefault(event_name, [])
+
+    new_hook = {"command": command}
+    replaced = False
+    for i, hook in enumerate(event_hooks):
+        if is_agent_learner_hook(hook):
+            event_hooks[i] = new_hook
+            replaced = True
+            break
+    if not replaced:
+        event_hooks.append(new_hook)
+
+    hooks[event_name] = event_hooks
+    settings_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return settings_path

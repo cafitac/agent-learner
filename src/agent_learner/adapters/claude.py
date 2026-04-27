@@ -3,7 +3,7 @@ from __future__ import annotations
 import shlex
 from pathlib import Path
 
-from .common import ensure_dir, merge_json_file, write_text
+from .common import ensure_dir, merge_json_file, upsert_hook, write_text
 
 
 AUTO_SESSION_LEARNING = """#!/usr/bin/env python3
@@ -146,3 +146,29 @@ def install_claude_adapter_with_scope(target_root: Path, *, scope: str = "projec
 
 def install_claude_adapter(target_root: Path) -> list[Path]:
     return install_claude_adapter_with_scope(target_root, scope="project")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: lightweight hook installer (mirrors hermit adapter pattern)
+# ---------------------------------------------------------------------------
+
+_CLAUDE_HOOK_COMMAND = (
+    "agent-learner process --adapter claude"
+    " --session-id $CLAUDE_SESSION_ID"
+    " --cwd $CWD"
+    " --model-id $CLAUDE_MODEL"
+    " --auto"
+)
+
+
+def install_claude_hooks(project_root: Path, *, scope: str = "project") -> Path:
+    """
+    Install agent-learner Stop hook into .claude/settings.json.
+
+    - scope="project": {project_root}/.claude/settings.json
+    - scope="user": {project_root}/.claude/settings.json (caller routes to home)
+    - Idempotent: updates existing agent-learner hook if present.
+    - Preserves other Stop hooks.
+    """
+    settings_path = project_root / ".claude" / "settings.json"
+    return upsert_hook(settings_path, "Stop", _CLAUDE_HOOK_COMMAND)

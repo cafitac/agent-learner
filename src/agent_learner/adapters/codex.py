@@ -3,7 +3,7 @@ from __future__ import annotations
 import shlex
 from pathlib import Path
 
-from .common import append_lines_if_missing, ensure_dir, merge_json_file, write_text
+from .common import append_lines_if_missing, ensure_dir, merge_json_file, upsert_hook, write_text
 from agent_learner.core.storage import migrate_legacy_learning_assets
 
 
@@ -336,3 +336,29 @@ def install_codex_adapter_with_scope(target_root: Path, *, scope: str = "project
     if scope == "project":
         written.extend(migrate_legacy_learning_assets(target_root))
     return written
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: lightweight hook installer (mirrors hermit adapter pattern)
+# ---------------------------------------------------------------------------
+
+_CODEX_HOOK_COMMAND = (
+    "agent-learner process --adapter codex"
+    " --session-id $CODEX_SESSION_ID"
+    " --cwd $CWD"
+    " --model-id $CODEX_MODEL"
+    " --auto"
+)
+
+
+def install_codex_hooks(project_root: Path, *, scope: str = "project") -> Path:
+    """
+    Install agent-learner Stop hook into .codex/hooks.json.
+
+    - scope="project": {project_root}/.codex/hooks.json
+    - scope="user": {project_root}/.codex/hooks.json (caller routes to home)
+    - Idempotent: updates existing agent-learner hook if present.
+    - Preserves other Stop hooks.
+    """
+    hooks_path = project_root / ".codex" / "hooks.json"
+    return upsert_hook(hooks_path, "Stop", _CODEX_HOOK_COMMAND)
