@@ -351,8 +351,8 @@ def main() -> int:
 
         written: list[Path] = []
         if "hermit" in adapters:
-            hermit_target = Path.home() if getattr(args, "hermit_scope", "project") == "user" else target
-            written.append(install_hermit_hooks(hermit_target, scope=getattr(args, "hermit_scope", "project")))
+            hermit_target = Path.home() if args.hermit_scope == "user" else target
+            written.append(install_hermit_hooks(hermit_target, scope=args.hermit_scope))
         if "codex" in adapters:
             written.extend(install_codex_adapter_with_scope(target, scope=args.codex_scope))
             written.append(install_codex_hooks(target, scope=args.codex_scope))

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 import shlex
 from pathlib import Path
 
-from .common import ensure_dir, merge_json_file, write_text
+from .common import ensure_dir, merge_json_file, upsert_hook, write_text
 
 
 AUTO_SESSION_LEARNING = """#!/usr/bin/env python3
@@ -162,10 +161,6 @@ _CLAUDE_HOOK_COMMAND = (
 )
 
 
-def _is_agent_learner_hook(hook: dict) -> bool:
-    return "agent-learner" in hook.get("command", "")
-
-
 def install_claude_hooks(project_root: Path, *, scope: str = "project") -> Path:
     """
     Install agent-learner Stop hook into .claude/settings.json.
@@ -176,29 +171,4 @@ def install_claude_hooks(project_root: Path, *, scope: str = "project") -> Path:
     - Preserves other Stop hooks.
     """
     settings_path = project_root / ".claude" / "settings.json"
-    ensure_dir(settings_path.parent)
-
-    if settings_path.exists():
-        settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    else:
-        settings = {}
-
-    hooks = settings.setdefault("hooks", {})
-    stop_hooks: list[dict] = hooks.setdefault("Stop", [])
-
-    new_hook = {"command": _CLAUDE_HOOK_COMMAND}
-    found = False
-    for i, hook in enumerate(stop_hooks):
-        if _is_agent_learner_hook(hook):
-            stop_hooks[i] = new_hook
-            found = True
-            break
-    if not found:
-        stop_hooks.append(new_hook)
-
-    hooks["Stop"] = stop_hooks
-    settings_path.write_text(
-        json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return settings_path
+    return upsert_hook(settings_path, "Stop", _CLAUDE_HOOK_COMMAND)

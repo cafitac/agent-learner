@@ -1,10 +1,9 @@
 """Hermit adapter — install OnStop hooks and emit session events."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from .common import ensure_dir, merge_json_file
+from .common import upsert_hook
 from agent_learner.core.events import build_learning_event, write_learning_event
 
 _ADAPTER = "hermit"
@@ -18,14 +17,6 @@ _HOOK_COMMAND = (
 )
 
 
-def _hermit_settings_path(project_root: Path, *, scope: str) -> Path:
-    return project_root / ".hermit" / "settings.json"
-
-
-def _is_agent_learner_hook(hook: dict) -> bool:
-    return "agent-learner" in hook.get("command", "")
-
-
 def install_hermit_hooks(project_root: Path, *, scope: str = "project") -> Path:
     """
     Install agent-learner OnStop hook into .hermit/settings.json.
@@ -35,36 +26,8 @@ def install_hermit_hooks(project_root: Path, *, scope: str = "project") -> Path:
     - Idempotent: updates existing agent-learner hook if present.
     - Preserves other OnStop hooks.
     """
-    settings_path = _hermit_settings_path(project_root, scope=scope)
-    ensure_dir(settings_path.parent)
-
-    # Read existing settings
-    if settings_path.exists():
-        settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    else:
-        settings = {}
-
-    # Navigate to hooks.OnStop
-    hooks = settings.setdefault("hooks", {})
-    on_stop: list[dict] = hooks.setdefault("OnStop", [])
-
-    # Find existing agent-learner hook or create new one
-    new_hook = {"command": _HOOK_COMMAND}
-    found = False
-    for i, hook in enumerate(on_stop):
-        if _is_agent_learner_hook(hook):
-            on_stop[i] = new_hook
-            found = True
-            break
-    if not found:
-        on_stop.append(new_hook)
-
-    hooks["OnStop"] = on_stop
-    settings_path.write_text(
-        json.dumps(settings, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return settings_path
+    settings_path = project_root / ".hermit" / "settings.json"
+    return upsert_hook(settings_path, "OnStop", _HOOK_COMMAND)
 
 
 def emit_session_event(
