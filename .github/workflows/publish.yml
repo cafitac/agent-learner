@@ -1,0 +1,102 @@
+name: Publish npm + PyPI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'package.json'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run npm wrapper tests
+        run: |
+          npm test
+          npm pack --dry-run
+      - name: Install uv
+        run: python -m pip install uv
+      - name: Sync environment
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
+      - name: Run tests
+        run: uv run --python ${{ matrix.python-version }} --extra dev pytest -q
+      - name: Run adapter smoke QA
+        if: matrix.python-version == '3.13'
+        run: |
+          uv run --python ${{ matrix.python-version }} --extra dev agent-learner qa-codex-smoke
+          uv run --python ${{ matrix.python-version }} --extra dev agent-learner qa-claude-smoke
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Bump to next patch version from registry
+        run: |
+          PUBLISHED_NPM=$(npm view @cafitac/agent-learner version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_PYPI=$(pip index versions agent-learner 2>/dev/null | grep -oP '(?<=agent-learner \()[\d.]+(?=\))' | head -1 || echo "0.0.0")
+          LOCAL=$(node -p "require('./package.json').version")
+          BASE=$(printf '%s\n%s\n%s\n' "$PUBLISHED_NPM" "$PUBLISHED_PYPI" "$LOCAL" | sort -V | tail -1)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "Publishing version $NEXT (npm: $PUBLISHED_NPM, pypi: $PUBLISHED_PYPI, local: $LOCAL)"
+          echo "NEXT=$NEXT" >> "$GITHUB_ENV"
+          npm version "$NEXT" --no-git-tag-version
+          sed -i "s/^version = \".*\"/version = \"$NEXT\"/" pyproject.toml
+
+      - name: Verify npm package shape
+        run: npm pack --dry-run
+
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
+
+      - name: Sync uv environment
+        run: uv sync --extra dev --python 3.13
+
+      - name: Build Python distributions
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
