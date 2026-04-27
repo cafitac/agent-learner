@@ -597,6 +597,8 @@ def main() -> int:
                     "confidence": record.candidate.confidence,
                     "matched_rule": record.candidate.matched_rule,
                     "review_required": record.candidate.review_required,
+                    "source_event_path": record.candidate.source_event_path,
+                    "transcript_path": record.candidate.transcript_path,
                     "field_diffs": record.candidate.field_diffs or {},
                 }
                 for record in records
