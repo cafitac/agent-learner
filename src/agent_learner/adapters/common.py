@@ -61,3 +61,57 @@ def merge_lists(existing: list, incoming: list) -> list:
             result.append(item)
             seen.add(key)
     return result
+
+
+def is_agent_learner_hook(hook: dict) -> bool:
+    """Check whether a hook entry was installed by agent-learner (both old and new formats)."""
+    if "agent-learner" in hook.get("command", ""):
+        return True
+    for inner in hook.get("hooks", []):
+        if "agent-learner" in inner.get("command", ""):
+            return True
+    return False
+
+
+def _make_hook_entry(command: str, *, hook_format: str) -> dict:
+    if hook_format == "claude":
+        return {
+            "matcher": ".*",
+            "hooks": [{"type": "command", "command": command}],
+        }
+    return {"command": command}
+
+
+def upsert_hook(settings_path: Path, event_name: str, command: str, *, hook_format: str = "simple") -> Path:
+    """Idempotently install or update an agent-learner hook in a JSON settings file.
+
+    hook_format:
+      "simple" — {"command": "..."} (Hermit, Codex)
+      "claude" — {"matcher": ".*", "hooks": [{"type": "command", "command": "..."}]} (Claude Code)
+    """
+    ensure_dir(settings_path.parent)
+
+    if settings_path.exists():
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+    else:
+        data = {}
+
+    hooks = data.setdefault("hooks", {})
+    event_hooks: list[dict] = hooks.setdefault(event_name, [])
+
+    new_hook = _make_hook_entry(command, hook_format=hook_format)
+    replaced = False
+    for i, hook in enumerate(event_hooks):
+        if is_agent_learner_hook(hook):
+            event_hooks[i] = new_hook
+            replaced = True
+            break
+    if not replaced:
+        event_hooks.append(new_hook)
+
+    hooks[event_name] = event_hooks
+    settings_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return settings_path
