@@ -62,7 +62,7 @@ class ConfiguredLearnerLLM:
     """LLM backend that reads config from project/global config.json."""
 
     def __init__(self, project_root: Path) -> None:
-        config = _load_llm_config(Path(project_root))
+        config = _load_llm_config(project_root)
         self.provider: str = config["provider"]
         self.model: str = config["model"]
         self.endpoint: str | None = config.get("endpoint")

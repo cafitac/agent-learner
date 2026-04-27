@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -280,7 +280,7 @@ class AutoLearningPipeline:
                 rule.status = "deprecated"
 
     def _find_existing_rule(self, lc: LearningLifecycle, name: str) -> str | None:
-        """Return path_or_name if rule exists, else None."""
+        """Return rule name if it already exists in any status bucket, else None."""
         try:
             lc.resolve_rule_path(name, statuses=["approved", "needs_review", "deprecated", "draft"])
             return name
@@ -299,12 +299,11 @@ class AutoLearningPipeline:
                 "Extract a reusable learning rule as JSON with keys: "
                 "name, rule, why, scope, good_pattern, avoid_pattern, tags, verify_cmd"
             )
-        else:
-            parts = [
-                f"Analyze this failed coding session ({tool_call_count} tool calls). "
-                "Extract a reusable learning rule that would prevent this failure as JSON with keys: "
-                "name, rule, why, scope, good_pattern, avoid_pattern, tags, verify_cmd",
-            ]
-            if pytest_output:
-                parts.append(f"Pytest output:\n{pytest_output[:2000]}")
-            return "\n".join(parts)
+        prompt = (
+            f"Analyze this failed coding session ({tool_call_count} tool calls). "
+            "Extract a reusable learning rule that would prevent this failure as JSON with keys: "
+            "name, rule, why, scope, good_pattern, avoid_pattern, tags, verify_cmd"
+        )
+        if pytest_output:
+            prompt += f"\nPytest output:\n{pytest_output[:2000]}"
+        return prompt

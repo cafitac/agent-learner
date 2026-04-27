@@ -105,7 +105,7 @@ def retrieve_rules_for_project(project_root: Path, request: RetrievalRequest) ->
     return apply_budget(limited, request.limit, request.token_budget)
 
 
-def should_inject_rule(rule: LearningRule, context: ContextSnapshot | None) -> bool:
+def should_inject_rule(rule: LearningRule | RuleIndexEntry, context: ContextSnapshot | None) -> bool:
     if context is None:
         return True
     if rule.projects and rule.projects != ["*"] and context.project_name not in rule.projects:
@@ -129,7 +129,7 @@ def should_inject_rule(rule: LearningRule, context: ContextSnapshot | None) -> b
     return True
 
 
-def score_rule(rule: LearningRule, request: RetrievalRequest) -> tuple[float, list[str]]:
+def score_rule(rule: LearningRule | RuleIndexEntry, request: RetrievalRequest) -> tuple[float, list[str]]:
     score = 3.0 if rule.status == "approved" else 1.5
     reasons = [f"status:{rule.status}"]
     relevance = 0.0
@@ -220,8 +220,6 @@ def score_rule(rule: LearningRule, request: RetrievalRequest) -> tuple[float, li
     return score, reasons
 
 
-
-
 def apply_budget_to_entries(results: list[tuple[RuleIndexEntry, float, list[str]]], limit: int, token_budget: int | None) -> list[tuple[RuleIndexEntry, float, list[str]]]:
     if token_budget is None:
         return results[:limit]
@@ -241,6 +239,7 @@ def apply_budget_to_entries(results: list[tuple[RuleIndexEntry, float, list[str]
         if len(selected) >= limit:
             break
     return selected
+
 
 def file_matches_rule(file_path: str, patterns: list[str]) -> bool:
     if not file_path or not patterns:

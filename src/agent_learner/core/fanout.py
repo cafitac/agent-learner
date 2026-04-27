@@ -79,43 +79,35 @@ def fanout_agent_learned(
 ) -> FanoutResult:
     """Generate agent-learned.md and fan-out to all inject directories."""
     with _LOCK:
-        return _fanout_inner(project_root, inject_dirs)
+        result = FanoutResult()
+        content = generate_agent_learned_md(project_root)
 
-
-def _fanout_inner(
-    project_root: Path,
-    inject_dirs: list[str] | None,
-) -> FanoutResult:
-    result = FanoutResult()
-    content = generate_agent_learned_md(project_root)
-
-    root = canonical_learning_root(project_root)
-    lc = LearningLifecycle(root)
-    try:
-        rules = lc.list_rules(statuses=["approved"])
-        result.rules_included = len(rules)
-    except Exception:
-        pass
-
-    if inject_dirs is None:
-        inject_dirs = _resolve_inject_dirs(project_root)
-
-    # Always write source
-    source_path = project_root / ".agent-learner" / "agent-learned.md"
-    if _write_if_changed(source_path, content):
-        result.written += 1
-
-    # Fan-out to inject_dirs
-    for d in inject_dirs:
-        target = Path(d)
-        if not target.is_absolute():
-            target = project_root / target
-        target_file = target / "agent-learned.md"
+        root = canonical_learning_root(project_root)
+        lc = LearningLifecycle(root)
         try:
-            if _write_if_changed(target_file, content):
-                result.written += 1
-        except OSError as e:
-            result.failed += 1
-            result.errors.append(f"{target_file}: {e}")
+            result.rules_included = len(lc.list_rules(statuses=["approved"]))
+        except Exception:
+            pass
 
-    return result
+        if inject_dirs is None:
+            inject_dirs = _resolve_inject_dirs(project_root)
+
+        # Always write source
+        source_path = project_root / ".agent-learner" / "agent-learned.md"
+        if _write_if_changed(source_path, content):
+            result.written += 1
+
+        # Fan-out to inject_dirs
+        for d in inject_dirs:
+            target = Path(d)
+            if not target.is_absolute():
+                target = project_root / target
+            target_file = target / "agent-learned.md"
+            try:
+                if _write_if_changed(target_file, content):
+                    result.written += 1
+            except OSError as e:
+                result.failed += 1
+                result.errors.append(f"{target_file}: {e}")
+
+        return result
