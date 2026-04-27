@@ -79,6 +79,10 @@ def _make_hook_entry(command: str, *, hook_format: str) -> dict:
             "matcher": ".*",
             "hooks": [{"type": "command", "command": command}],
         }
+    if hook_format == "codex":
+        return {
+            "hooks": [{"type": "command", "command": command}],
+        }
     return {"command": command}
 
 
