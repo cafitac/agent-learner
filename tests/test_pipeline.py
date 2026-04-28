@@ -425,6 +425,54 @@ def test_process_events_rejects_real_runtime_contextless_pronoun_candidate(tmp_p
     assert candidate_record.candidate.decision_reason == "candidate signal is too contextless to become a durable rule"
 
 
+def test_process_events_rejects_real_runtime_contextless_pronoun_compact_candidate(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    message = "Keep it compact."
+    transcript.write_text(json.dumps({"message": message}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="reject-real-pronoun-compact-1",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].status == "candidate_rejected"
+    assert results[0].decision == "reject_candidate"
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "rejected_candidate"
+    assert candidate_record.candidate.decision_reason == "candidate signal is too contextless to become a durable rule"
+
+
+def test_process_events_rejects_real_runtime_malformed_code_fragment_candidate(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    message = ", ack_mode=AUTO), so they do not protect the durability behavior that should rely on MANUAL ack / processing-list recovery."
+    transcript.write_text(json.dumps({"message": message}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="reject-real-fragment-1",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].status == "candidate_rejected"
+    assert results[0].decision == "reject_candidate"
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "rejected_candidate"
+    assert candidate_record.candidate.decision_reason == "candidate signal looks like a malformed code or log fragment, not a durable rule"
+
+
 def test_process_events_keeps_operational_debug_note_in_candidate_queue_until_repeated(tmp_path: Path) -> None:
     transcript = tmp_path / "session.jsonl"
     message = "Always distinguish OMX hook messages from AgentLearner hook messages when debugging Codex installs."
