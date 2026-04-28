@@ -68,7 +68,7 @@ npm-wrapper goal:
 npx @cafitac/agent-learner@latest dashboard --project-root "$PWD" --open
 ```
 
-The retrieval path uses `.agent-learner/index/rules.json` first and only loads the top matching rules into prompt context.
+The retrieval path uses `$AGENT_LEARNER_HOME/index/rules.json` first and only loads the top matching rules into prompt context.
 If you edit rule files manually, rebuild the index with:
 
 ```bash
@@ -107,8 +107,9 @@ agent-learner bootstrap --adapters codex --target /path/to/consumer-repo
 ```
 
 By default, `bootstrap --adapters codex` installs the Codex hook once for your user-level
-Codex home so every project can learn into its own local `.agent-learner/`
-tree automatically:
+Codex home. Each project is resolved from `cwd`, while events, candidates,
+history, indexes, and durable rules are written to `AGENT_LEARNER_HOME`
+(default `~/.agent-learner/`) with repo provenance metadata:
 
 ```bash
 agent-learner bootstrap --adapters codex
@@ -120,33 +121,37 @@ If you want the older repo-local hook install, opt into it explicitly:
 agent-learner bootstrap --adapters codex --codex-scope project --target /path/to/consumer-repo
 ```
 
-This creates:
+For a project-scope Codex hook install, this creates the adapter surface:
 - `.codex/hooks.json`
 - `.codex/skills/session-wrap/`
 - `.codex/skills/feedback-learning/`
 - `.codex/skills/hermit-learner/`
 - `.codex/references/scripts/auto_session_learning.py`
 - `.codex/references/scripts/codex_prompt_context.py`
-- `.agent-learner/learning/`
-- `.agent-learner/events/codex/`
-- `.agent-learner/candidates/`
-- `.agent-learner/history/`
-- `.agent-learner/state/processed-events/`
+
+The learning data itself is stored globally:
+- `$AGENT_LEARNER_HOME/learning/`
+- `$AGENT_LEARNER_HOME/events/codex/`
+- `$AGENT_LEARNER_HOME/candidates/`
+- `$AGENT_LEARNER_HOME/history/`
+- `$AGENT_LEARNER_HOME/state/processed-events/`
 
 The Codex adapter wires two native hook paths:
 - `UserPromptSubmit` -> retrieve approved learning assets and inject compact per-turn context
 - `Stop` -> capture new learning candidates and refresh the dashboard
 
-Canonical durable learning storage lives under `.agent-learner/learning/`.
-`.codex/` remains the adapter and hook surface, not the system of record.
+Canonical durable learning storage lives under `$AGENT_LEARNER_HOME/learning/`
+(default `~/.agent-learner/learning/`). `.codex/` remains the adapter and hook
+surface, not the system of record.
 External wiki/KB systems are intentionally out of scope for normal adapter install
 and runtime behavior.
 With the default `user` scope, hook scripts are installed under `~/.codex/`, but the hook
-still resolves the active project from `cwd` and writes learning assets under the
-current repo instead of mixing everything into the user home.
-If legacy rules already exist under `.codex/references/learning/`, install/bootstrap
-copies them into the canonical root and writes a migration marker so reads switch
-cleanly without hiding existing assets.
+still resolves the active project from `cwd`; repo identity and provenance keep
+project-specific retrieval separate inside the global learning home.
+If legacy rules already exist under `<project>/.agent-learner/` or
+`.codex/references/learning/`, install/bootstrap copies them into the canonical
+global root and writes a migration marker so reads switch cleanly without hiding
+existing assets.
 
 Preview the prompt injection locally:
 

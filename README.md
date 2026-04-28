@@ -4,7 +4,7 @@ Reusable learning control plane for coding-agent workflows.
 
 `agent-learner` helps you:
 - capture learned rules from agent work
-- keep project-local and global learning assets separate
+- keep repo-scoped and global learning assets in one canonical global store
 - review candidates and promote useful rules
 - use a dashboard UI for history, rules, and promotions
 
@@ -65,22 +65,23 @@ Docker is optional convenience only. It is not the primary OSS install path.
 2. Run `doctor`
 3. Open the dashboard
 4. Review rules, candidates, and history
-5. Promote reusable learning assets to the global layer when appropriate
+5. Promote reusable learning assets after review; repo scoping is tracked by metadata, not separate local stores
 
 ## Core concepts
 
-### Project-local vs global learning
+### Global-first learning storage
 
-- project-local knowledge lives under `<project>/.agent-learner/`
-- reusable shared knowledge lives under `~/.agent-learner/global/`
-- retrieval is local-first, then global
-- Codex can be installed once at user scope while still writing learning assets per project
+- canonical durable learning lives under `AGENT_LEARNER_HOME` (default `~/.agent-learner/`)
+- events, candidates, history, rules, and indexes are stored in that global home
+- repo-specific behavior is selected by repo identity, learning scope, and provenance metadata rather than by a project-local storage root
+- existing `<project>/.agent-learner/` and `.codex/references/learning/` assets are treated as legacy migration sources, not normal fallback stores
+- Codex, Claude, and Hermes can be installed at user scope while still resolving the active repo from `cwd`
 - external wiki/KB systems remain separate and are not part of the canonical learning lifecycle
 
 ### Indexed retrieval and pruning
 
-- rules are indexed into machine-readable metadata under `.agent-learner/index/rules.json`
-- a human-readable summary is also written to `.agent-learner/index/index.md`
+- rules are indexed into machine-readable metadata under `$AGENT_LEARNER_HOME/index/rules.json`
+- a human-readable summary is also written to `$AGENT_LEARNER_HOME/index/index.md`
 - retrieval uses the index first, then loads only the top matching rules
 - `approved` rules are injected by default; `needs_review` and `deprecated` stay out unless explicitly requested
 - use `agent-learner rebuild-index --project-root "$PWD"` if you want to force a full reindex after manual edits
