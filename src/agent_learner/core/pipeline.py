@@ -28,6 +28,7 @@ COMPARISON_STATUSES = ["approved", "needs_review"]
 GENERIC_REJECTION_TERMS = {"careful", "quality", "best", "good", "clean", "helpful", "process", "properly", "appropriate"}
 NEGATION_TERMS = {"never", "not", "avoid", "except", "unless", "dont", "no"}
 STOPWORDS = {"a", "an", "and", "be", "for", "the", "to", "with", "when", "whenever", "always"}
+CONTEXTUAL_PRONOUNS = {"them", "it", "this", "that", "these", "those"}
 OPERATIONAL_CONTEXT_TERMS = {
     "debug",
     "debugging",
@@ -412,12 +413,13 @@ def update_candidate_status(
 
 
 def compare_candidate_to_existing_rule(project_root: Path, lifecycle: LearningLifecycle, candidate: LearningCandidate) -> CandidateComparison:
-    if should_reject_candidate(candidate):
+    rejection_reason = candidate_rejection_reason(candidate)
+    if rejection_reason:
         return CandidateComparison(
             decision="reject_candidate",
             matched_rule=None,
             confidence="high",
-            reason="candidate signal is too generic to become a durable rule",
+            reason=rejection_reason,
             review_required=False,
             field_diffs={},
             similarity=0.0,
@@ -725,10 +727,22 @@ def decision_to_history_action(decision: ComparisonDecisionType) -> str:
     return "reject_candidate"
 
 
-def should_reject_candidate(candidate: LearningCandidate) -> bool:
+def candidate_rejection_reason(candidate: LearningCandidate) -> str | None:
     tokens = tokenize_for_compare(candidate.suggested_rule)
-    useful = [token for token in tokens if token not in GENERIC_REJECTION_TERMS and token not in STOPWORDS]
-    return len(useful) < 2
+    useful = [
+        token
+        for token in tokens
+        if token not in GENERIC_REJECTION_TERMS and token not in STOPWORDS and token not in CONTEXTUAL_PRONOUNS
+    ]
+    if len(useful) < 2:
+        return "candidate signal is too generic to become a durable rule"
+    if len(useful) <= 2 and any(token in CONTEXTUAL_PRONOUNS for token in tokens):
+        return "candidate signal is too contextless to become a durable rule"
+    return None
+
+
+def should_reject_candidate(candidate: LearningCandidate) -> bool:
+    return candidate_rejection_reason(candidate) is not None
 
 
 def candidate_specificity_score(candidate: LearningCandidate) -> int:
@@ -860,13 +874,13 @@ def has_contextual_pronoun_or_lead_in(text: str) -> bool:
     clause = extract_imperative_clause(text)
     if clause != normalized:
         return True
-    return any(token in {"them", "it", "this", "that", "these", "those"} for token in tokenize_for_compare(clause))
+    return any(token in CONTEXTUAL_PRONOUNS for token in tokenize_for_compare(clause))
 
 
 def imperative_signature_tokens(text: str) -> list[str]:
     clause = extract_imperative_clause(text)
     raw_tokens = tokenize_for_compare(clause)
-    return [token for token in raw_tokens if token not in STOPWORDS and token not in GENERIC_REJECTION_TERMS and token not in {"them", "it", "this", "that", "these", "those"}]
+    return [token for token in raw_tokens if token not in STOPWORDS and token not in GENERIC_REJECTION_TERMS and token not in CONTEXTUAL_PRONOUNS]
 
 
 LEAD_IN_CONDITION_TERMS = {"when", "while", "if", "after", "before", "during", "once"}
