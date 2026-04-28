@@ -302,9 +302,10 @@ test('printHelp advertises bootstrap as the install path', () => {
   assert.doesNotMatch(output, /install-claude/);
 });
 
-test('runWrapperUpdate prefers the npm next to the wrapper script when node comes from a different PATH entry', () => {
+test('runWrapperUpdate prefers the npm next to the wrapper script and pins installs to that wrapper prefix', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-learner-wrapper-script-update-'));
-  const wrapperBinDir = path.join(tempRoot, 'nvm-bin');
+  const wrapperPrefixDir = path.join(tempRoot, 'nvm-prefix');
+  const wrapperBinDir = path.join(wrapperPrefixDir, 'bin');
   const systemBinDir = path.join(tempRoot, 'system-bin');
   fs.mkdirSync(wrapperBinDir, { recursive: true });
   fs.mkdirSync(systemBinDir, { recursive: true });
@@ -325,6 +326,6 @@ test('runWrapperUpdate prefers the npm next to the wrapper script when node come
   assert.equal(runWrapperUpdate('pipe', fakeRunner, nodeExecutable, wrapperExecutable), 0);
   assert.deepEqual(calls[0], {
     tool: npmExecutable,
-    args: ['install', '-g', '@cafitac/agent-learner@latest']
+    args: ['install', '-g', '@cafitac/agent-learner@latest', '--prefix', wrapperPrefixDir]
   });
 });

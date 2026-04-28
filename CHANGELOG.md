@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.29] - 2026-04-28
+
+### Fixed
+- `agent-learner update` now pins npm global installs to the prefix inferred from the installed wrapper location, so user-scoped installs under nvm do not get redirected back into `/usr/local` by a stale global npm prefix setting.
+
 ## [0.3.28] - 2026-04-28
 
 ### Fixed
