@@ -6,8 +6,12 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.27] - 2026-04-28
+
 ### Fixed
 - `agent-learner storage-doctor` now reports unmigrated legacy Codex learning files with a distinct warning code and a Codex-scoped bootstrap remediation command, instead of only suggesting the generic bootstrap path.
+- Hermes candidate extraction now rejects malformed runtime code/log fragments such as `, ack_mode=AUTO)... MANUAL ack / processing-list recovery` instead of promoting them into durable rules.
+- Hermes candidate extraction now strips injected skill-wrapper transcript text before scoring candidate signals, preventing skill body procedure text from becoming durable learning candidates.
 
 ## [0.3.26] - 2026-04-28
 
