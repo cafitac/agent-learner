@@ -506,6 +506,64 @@ def test_process_events_rejects_real_runtime_malformed_code_fragment_candidate(t
     assert candidate_record.candidate.decision_reason == "candidate signal looks like a malformed code or log fragment, not a durable rule"
 
 
+def test_process_events_rejects_task_specific_review_constraint_do_not_modify_files(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    message = (
+        "Review the current uncommitted diff in /Users/reddit/Project/earlypay/earlypay-settlement for PR #4026 "
+        "queue ack/recovery changes. Focus only on correctness issues that could cause message loss, duplicate "
+        "dispatch, retry budget mistakes, or CI failures. Verify findings against the actual diff and repo; return "
+        "concise severity-ranked findings or say no major findings. Do not modify files."
+    )
+    transcript.write_text(json.dumps({"message": message}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="reject-review-constraint-modify-files-1",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].status == "candidate_rejected"
+    assert results[0].decision == "reject_candidate"
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "rejected_candidate"
+    assert candidate_record.candidate.decision_reason == "candidate signal is a task-specific review constraint, not a durable rule"
+
+
+def test_process_events_rejects_task_specific_review_constraint_prior_reviews(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    message = (
+        "Fresh correctness review of PR 4026 tests/factory/CI-hardening changes. Do not assume prior reviews are correct. "
+        "Identify P1/P2/P3 issues only, grounded in current diff origin/develop...HEAD. Focus on UserFactory Sequence "
+        "side effects, test coverage gaps, tests that might give false confidence, and whether local/CI gates cover "
+        "changed behavior. Return concise Korean summary with file/line references if findings exist."
+    )
+    transcript.write_text(json.dumps({"message": message}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="reject-review-constraint-prior-reviews-1",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].status == "candidate_rejected"
+    assert results[0].decision == "reject_candidate"
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "rejected_candidate"
+    assert candidate_record.candidate.decision_reason == "candidate signal is a task-specific review constraint, not a durable rule"
+
+
 def test_process_events_keeps_operational_debug_note_in_candidate_queue_until_repeated(tmp_path: Path) -> None:
     transcript = tmp_path / "session.jsonl"
     message = "Always distinguish OMX hook messages from AgentLearner hook messages when debugging Codex installs."
