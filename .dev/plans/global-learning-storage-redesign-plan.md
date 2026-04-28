@@ -1,6 +1,20 @@
 # Global-first learning storage implementation plan
 
-> For Hermes: use test-driven-development. Make storage changes incrementally and keep compatibility reads until migration is verified.
+> Status: deferred / archive reference. Do not resume this plan blindly; check `.dev/hermes-candidate-quality-handoff.md` first for the active next step.
+
+## Archive note
+
+This plan is not the current execution queue.
+
+Current reality:
+- the main agent-learner / Hermes integration work is already complete
+- current follow-up work is paused pending more fresh real Hermes runtime data
+- this storage redesign can be revisited later, but it is not the thing a new session should pick up by default
+
+If a future session asks “what should I do now?”, the answer should come from:
+- `.dev/hermes-candidate-quality-handoff.md`
+
+Use this file only when there is an explicit decision to restart the global-storage redesign.
 
 Goal: move canonical agent-learner storage from per-project `.agent-learner/` roots to a single global `~/.agent-learner/` store, while preserving repo-specific retrieval behavior through repo identity metadata and provenance.
 

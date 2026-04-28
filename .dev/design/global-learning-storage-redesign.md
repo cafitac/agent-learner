@@ -1,8 +1,19 @@
 # Global-first learning storage redesign
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 Repo: /Users/reddit/Project/agent-learner
-Status: proposed
+Status: deferred / archive reference
+
+## Document status note
+
+This redesign document is not the active task queue.
+
+At the current handoff point, the main agent-learner implementation work is complete and the only active follow-up is evidence-driven Hermes candidate-quality validation when more real runtime data accumulates.
+
+If a future session needs to know what to do next, start with:
+- `.dev/hermes-candidate-quality-handoff.md`
+
+Use this file only as historical design context for a future storage redesign revival. Do not resume this redesign just because the document exists.
 
 ## Goal
 
