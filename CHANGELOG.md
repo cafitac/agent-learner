@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.26] - 2026-04-28
+
+### Fixed
+- npm wrapper published-mode execution now passes `--python 3.11` to `uvx` by default, with `AGENT_LEARNER_UVX_PYTHON` as an override, so installed wrappers do not fail on systems whose default `python3` is older than the Python core requirement.
+
 ## [0.3.25] - 2026-04-28
 
 ### Added
