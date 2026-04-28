@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.28] - 2026-04-28
+
+### Fixed
+- `agent-learner update` now prefers the npm executable next to the installed wrapper script itself before falling back to the active `node` or plain `npm`, so login/non-interactive shells that resolve `node` from `/usr/local/bin` no longer redirect updates into the wrong global prefix.
+
 ## [0.3.27] - 2026-04-28
 
 ### Fixed
