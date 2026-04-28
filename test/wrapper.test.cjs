@@ -41,6 +41,8 @@ test('parseArgs handles version, doctor, and bootstrap', () => {
   assert.deepEqual(parseArgs(['version']), { type: 'version' });
   assert.deepEqual(parseArgs(['doctor', '--json']), { type: 'doctor', json: true });
   assert.deepEqual(parseArgs(['bootstrap', '--adapters', 'codex']), { type: 'core', coreArgs: ['bootstrap', '--adapters', 'codex'] });
+  assert.deepEqual(parseArgs(['storage-doctor', '--project-root', '/tmp/repo', '--format', 'json']), { type: 'core', coreArgs: ['storage-doctor', '--project-root', '/tmp/repo', '--format', 'json'] });
+  assert.deepEqual(parseArgs(['audit-storage-layout', '--project-root', '/tmp/repo']), { type: 'core', coreArgs: ['audit-storage-layout', '--project-root', '/tmp/repo'] });
   assert.deepEqual(parseArgs(['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json']), { type: 'core', coreArgs: ['rebuild-index', '--project-root', '/tmp/repo', '--scope', 'project', '--format', 'json'] });
   assert.deepEqual(parseArgs(['update']), { type: 'update' });
 });
@@ -252,11 +254,15 @@ test('completionScript exposes bootstrap and hides removed install aliases', () 
   const bash = completionScript('bash');
   assert.doesNotMatch(bash, /install-codex/);
   assert.match(bash, /bootstrap/);
+  assert.match(bash, /storage-doctor/);
+  assert.match(bash, /audit-storage-layout/);
   assert.match(bash, /rebuild-index/);
   assert.match(bash, /update/);
   const zsh = completionScript('zsh');
   assert.doesNotMatch(zsh, /install-codex/);
   assert.match(zsh, /bootstrap/);
+  assert.match(zsh, /storage-doctor/);
+  assert.match(zsh, /audit-storage-layout/);
   assert.match(zsh, /update/);
 });
 
@@ -274,6 +280,8 @@ test('printHelp advertises bootstrap as the install path', () => {
   }
   const output = calls.join('\n');
   assert.match(output, /agent-learner bootstrap/);
+  assert.match(output, /agent-learner storage-doctor/);
+  assert.match(output, /agent-learner audit-storage-layout/);
   assert.doesNotMatch(output, /install-codex/);
   assert.doesNotMatch(output, /install-claude/);
 });

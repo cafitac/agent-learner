@@ -69,6 +69,99 @@ def test_doctor_command_reports_status(monkeypatch, tmp_path: Path, capsys) -> N
     assert "next_command" in payload
 
 
+def test_storage_doctor_reports_global_counts_and_legacy_sources(monkeypatch, tmp_path: Path, capsys) -> None:
+    home = tmp_path / "home-learning"
+    lifecycle = LearningLifecycle(home / "learning")
+    lifecycle.save_rule(
+        LearningRule(
+            name="keep-tests",
+            rule="Keep tests updated with behavior changes.",
+            why="Regression coverage matters.",
+            scope="tests",
+            good_pattern="Update code and tests together.",
+            avoid_pattern="Ship stale tests.",
+            summary="Keep tests updated.",
+            status="approved",
+        )
+    )
+    (home / "events" / "hermes").mkdir(parents=True)
+    (home / "events" / "hermes" / "session_end-1.json").write_text("{}", encoding="utf-8")
+    (home / "candidates" / "hermes").mkdir(parents=True)
+    (home / "candidates" / "hermes" / "candidate-1.md").write_text(
+        "---\nadapter: hermes\nstatus: draft_candidate\n---\n# Candidate\n",
+        encoding="utf-8",
+    )
+    (home / "history").mkdir(parents=True)
+    (home / "history" / "promotions.jsonl").write_text(
+        json.dumps({"action": "promote", "rule": "keep-tests"}) + "\n",
+        encoding="utf-8",
+    )
+    (home / "index").mkdir(parents=True, exist_ok=True)
+    (home / "index" / "rules.json").write_text("[]\n", encoding="utf-8")
+
+    legacy_rule = tmp_path / ".agent-learner" / "learning" / "approved" / "legacy-only.md"
+    legacy_rule.parent.mkdir(parents=True)
+    legacy_rule.write_text("# Legacy only\n", encoding="utf-8")
+
+    marker = tmp_path / ".agent-learner" / "state" / "storage-migration.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(
+        json.dumps(
+            {
+                "migrated_from": str(tmp_path / ".agent-learner"),
+                "canonical_root": str(home),
+                "copied_counts": {"rules": 1},
+                "copied_files": [str(home / "learning" / "approved" / "keep-tests.md")],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "storage-doctor", "--project-root", str(tmp_path), "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["project_root"] == str(tmp_path.resolve())
+    assert payload["canonical"]["home"] == str(home.resolve())
+    assert payload["counts"]["events_by_adapter"]["hermes"] == 1
+    assert payload["counts"]["candidates_by_adapter_status"]["hermes"]["draft_candidate"] == 1
+    assert payload["counts"]["learning_by_bucket"]["approved"] == 1
+    assert payload["counts"]["history_entries"] == 1
+    assert payload["counts"]["index"]["rules_json"] is True
+
+    local_source = next(item for item in payload["legacy_sources"] if item["kind"] == "project_local_agent_learner")
+    assert local_source["exists"] is True
+    assert local_source["file_counts"]["rules"] == 1
+    assert local_source["migration_marker"]["exists"] is True
+    assert local_source["migration_marker"]["copied_counts"]["rules"] == 1
+
+    warning_codes = {item["code"] for item in payload["warnings"]}
+    assert "legacy_source_has_unmigrated_files" in warning_codes
+    assert any(command.startswith("agent-learner process-events --project-root") for command in payload["next_commands"])
+
+
+def test_storage_doctor_is_read_only_for_unmigrated_local_source(monkeypatch, tmp_path: Path, capsys) -> None:
+    local_event = tmp_path / ".agent-learner" / "events" / "hermes" / "session_end-1.json"
+    local_event.parent.mkdir(parents=True)
+    local_event.write_text("{}", encoding="utf-8")
+    marker = tmp_path / ".agent-learner" / "state" / "storage-migration.json"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "audit-storage-layout", "--project-root", str(tmp_path), "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert marker.exists() is False
+    warning_codes = {item["code"] for item in payload["warnings"]}
+    assert "legacy_source_missing_migration_marker" in warning_codes
+    assert "legacy_source_has_unmigrated_files" in warning_codes
+
+
 def test_bootstrap_claude_only(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         "sys.argv",
