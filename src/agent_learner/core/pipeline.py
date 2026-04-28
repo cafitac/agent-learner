@@ -1057,7 +1057,8 @@ def extract_transcript_messages(payload: object) -> list[str]:
 
 def extract_transcript_content(value: object) -> list[str]:
     if isinstance(value, str):
-        return [value] if value.strip() else []
+        sanitized = strip_injected_skill_wrapper(value)
+        return [sanitized] if sanitized.strip() else []
     if isinstance(value, list):
         lines: list[str] = []
         for item in value:
@@ -1066,12 +1067,24 @@ def extract_transcript_content(value: object) -> list[str]:
     if isinstance(value, dict):
         text = value.get("text")
         if isinstance(text, str) and text.strip():
-            return [text]
+            sanitized = strip_injected_skill_wrapper(text)
+            return [sanitized] if sanitized.strip() else []
         for key in ("content", "parts"):
             nested = value.get(key)
             if nested is not None:
                 return extract_transcript_content(nested)
     return []
+
+
+def strip_injected_skill_wrapper(text: str) -> str:
+    stripped = text.strip()
+    if not stripped.startswith('[IMPORTANT: The user has invoked the "'):
+        return text
+    marker = 'The user has provided the following instruction alongside the skill invocation:'
+    if marker not in stripped:
+        return ""
+    _, _, remainder = stripped.partition(marker)
+    return remainder.strip()
 
 
 def find_rule_like_excerpt(corpus: str) -> str | None:
