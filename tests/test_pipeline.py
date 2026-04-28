@@ -174,6 +174,39 @@ def test_extract_candidate_reads_rule_signal_from_hermes_session_messages(tmp_pa
     assert candidate.suggested_rule == "Always keep Hermes learning rules short and reusable."
 
 
+def test_extract_candidate_ignores_hermes_skill_wrapper_in_user_message(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.json"
+    transcript.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "[IMPORTANT: The user has invoked the \"code-polish\" skill, indicating they want you to follow its instructions. The full skill content is loaded below.]\n\n---\nname: code-polish\ndescription: Use when you want Hermes to iterate review, apply, and push loops on an Earlypay PR until major findings are cleared.\n---\n\n# Code Polish\n\n## Overview\nUse this for the full review-fix-repeat loop. Hermes should repeat `code-review` and `code-apply` until serious findings are gone, then finish with testing and push preparation.\n\n[Skill directory: /Users/reddit/.hermes/skills/custom/code-polish]\nResolve any relative paths in this skill against that directory.\n\nThe user has provided the following instruction alongside the skill invocation: 4026",
+                    },
+                    {"role": "assistant", "content": ""},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    event_path = write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="hermes-skill-wrapper-1",
+            transcript_path=str(transcript),
+            payload={"message": "session ended"},
+        ),
+    )
+
+    event = load_learning_event(event_path)
+    candidate = extract_candidate_from_event(tmp_path, event_path, event)
+    assert candidate is None
+
+
 def test_extract_candidate_returns_none_without_rule_signal(tmp_path: Path) -> None:
     event_path = write_learning_event(
         tmp_path,
