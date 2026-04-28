@@ -2,11 +2,32 @@
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
+**Status:** Completed implementation plan kept for archive/reference. Do not resume this checklist blindly; use `.dev/hermes-candidate-quality-handoff.md` for active next steps.
+
 **Goal:** Add an experimental Hermes adapter to `agent-learner` that supports project-scoped install, normalized `session_end` event capture, manual processing, and compact prompt-time retrieval without regressing existing Codex/Claude flows.
 
 **Architecture:** Keep `agent-learner` core as the canonical learning plane and add Hermes as a thin adapter. The implementation should first extend CLI and installer surfaces, then add Hermes-specific helper scripts and retrieval formatting, and only after that wire Hermes runtime hook integration. Preserve project-local `.agent-learner/` as the system of record and avoid mutating unrelated Hermes memory/skills files.
 
 **Tech Stack:** Python 3, argparse CLI in `src/agent_learner/cli/main.py`, adapter modules in `src/agent_learner/adapters/`, pytest test suite under `tests/`.
+
+---
+
+## Archive note
+
+This plan was largely executed and is no longer the active task list.
+
+What is done at a high level:
+- Hermes adapter exists
+- bootstrap-only install path exists
+- Hermes runtime hooks and retrieval path were validated in real runtime
+- multiple candidate-quality hardening passes already landed, most recently PR #37
+
+What remains active:
+- only evidence-driven follow-up on Hermes candidate quality
+- only when fresh real-session-backed noisy samples accumulate
+
+For a new session, start here instead:
+- `.dev/hermes-candidate-quality-handoff.md`
 
 ---
 

@@ -1,8 +1,21 @@
 # Design: Hermes Adapter Implementation for agent-learner
 
 **작성일**: 2026-04-27 15:38 KST  
-**상태**: 구현 반영됨 (MVP, experimental)  
+**상태**: 구현 반영됨 / 후속 작업은 handoff 기준  
 **관련 PRD**: `.dev/prd/hermes-adapter.md`
+
+---
+
+## 문서 상태 메모
+
+이 문서는 Hermes adapter MVP 구현 설계와 구현 중간 결정을 담은 참고 문서다.
+
+현재 새 세션에서 바로 이어야 할 일은 대부분 설계 작업이 아니라, Hermes candidate-quality를 real runtime evidence로 재평가하는 것이다. 따라서 새 작업 시작 시 우선순위는 다음과 같다.
+- 1순위: `.dev/hermes-candidate-quality-handoff.md`
+- 2순위: 현재 `src/agent_learner/core/pipeline.py` 와 `tests/test_pipeline.py`
+- 3순위: 이 설계 문서
+
+즉 이 문서는 historical design reference이고, 현재 실행 큐는 handoff 문서가 관리한다.
 
 ---
 

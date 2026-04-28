@@ -1,9 +1,21 @@
 # PRD: Hermes Adapter for agent-learner
 
 **작성일**: 2026-04-27 15:38 KST  
-**상태**: 초안  
+**상태**: 구현 완료 / 보관용 참고 문서  
 **범위**: `.dev` 전용 AI 초안 / 사람 승인 전  
 **의존성**: agent-learner v2 core, existing Codex/Claude adapters
+
+---
+
+## 문서 상태 메모
+
+이 PRD는 Hermes adapter 구현 전 요구사항 초안으로 작성되었고, 현재는 대부분 반영되었다.
+
+새 작업을 시작할 때는 이 문서를 실행 계획의 source of truth로 삼지 말고, 먼저 다음 문서를 본다.
+- `.dev/hermes-candidate-quality-handoff.md` — 현재 이어서 할 일과 live-data 기준
+- `.dev/design/hermes-adapter-implementation.md` — 구현 반영 후 설계 메모
+
+현재 시점에서 이 PRD의 많은 초기 가정은 이미 완료되었거나 방향이 바뀌었다. 특히 project-local-first 서술보다 실제 구현은 global-first canonical storage와 user-scope Hermes bootstrap 검증에 더 가깝다.
 
 ---
 
