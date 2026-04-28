@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import sys
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 
 from agent_learner.adapters import install_claude_adapter, install_codex_adapter, install_hermes_adapter
@@ -22,7 +23,7 @@ from agent_learner.adapters.codex_context import (
 )
 from agent_learner.core.global_learning import apply_candidate_action, promote_rule_to_global, sync_rules_to_global
 from agent_learner.core.context import detect_context, write_current_model
-from agent_learner.core.dashboard import build_dashboard_summary, write_dashboard_files
+from agent_learner.core.dashboard import build_dashboard_summary, write_dashboard_files, collect_rules, merge_rules
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
 from agent_learner.core.indexing import rebuild_rule_index
 from agent_learner.core.events import build_learning_event, write_learning_event
@@ -51,6 +52,75 @@ LEGACY_INSTALL_REPLACEMENTS = {
     "install-claude": "agent-learner bootstrap --adapters claude",
     "install-hermes": "agent-learner bootstrap --adapters hermes",
 }
+
+
+def _parse_utc_day(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def build_usage_summary(project_root: Path, *, stale_days: int = 30) -> dict[str, object]:
+    learning_root = resolve_learning_root(project_root)
+    local_rules = collect_rules(learning_root)
+    global_rules = collect_rules(global_learning_root())
+    merged_rules = merge_rules(local_rules, global_rules)
+    now = datetime.now(timezone.utc)
+
+    rules: list[dict[str, object]] = []
+    stale_rules = 0
+    never_retrieved_rules = 0
+    retrieved_rules = 0
+    for record in merged_rules:
+        use_count = int(record.get("use_count") or 0)
+        promote_count = int(record.get("promote_count") or 0)
+        refresh_count = int(record.get("refresh_count") or 0)
+        last_retrieved_at = str(record.get("last_used") or "") or None
+        never_retrieved_since_promotion = promote_count > 0 and use_count == 0
+        stale = False
+        stale_reason: str | None = None
+        last_retrieved_dt = _parse_utc_day(last_retrieved_at)
+        if last_retrieved_dt is not None and (now - last_retrieved_dt).days >= stale_days:
+            stale = True
+            stale_reason = f"unused {stale_days}d+"
+        if stale:
+            stale_rules += 1
+        if never_retrieved_since_promotion:
+            never_retrieved_rules += 1
+        if use_count > 0:
+            retrieved_rules += 1
+        rules.append(
+            {
+                "name": str(record.get("name") or ""),
+                "status": str(record.get("status") or ""),
+                "learning_scope": str(record.get("learning_scope") or ""),
+                "scope": str(record.get("scope") or ""),
+                "summary": str(record.get("summary") or ""),
+                "use_count": use_count,
+                "refresh_count": refresh_count,
+                "promote_count": promote_count,
+                "last_retrieved_at": last_retrieved_at,
+                "updated_at": record.get("updated_at"),
+                "never_retrieved_since_promotion": never_retrieved_since_promotion,
+                "stale": stale,
+                "stale_reason": stale_reason,
+            }
+        )
+    rules.sort(key=lambda item: (-int(item["use_count"]), item["name"]))
+    return {
+        "overview": {
+            "total_rules": len(rules),
+            "retrieved_rules": retrieved_rules,
+            "never_retrieved_rules": never_retrieved_rules,
+            "stale_rules": stale_rules,
+            "stale_days": stale_days,
+        },
+        "rules": rules,
+    }
 
 
 def filter_history_entries(entries: list[dict[str, object]], args: argparse.Namespace) -> list[dict[str, object]]:
@@ -310,6 +380,11 @@ def build_parser() -> argparse.ArgumentParser:
     overview_cmd.add_argument("--until")
     overview_cmd.add_argument("--last", type=int)
     overview_cmd.add_argument("--format", choices=["text", "json"], default="text")
+
+    usage_summary_cmd = sub.add_parser("usage-summary")
+    usage_summary_cmd.add_argument("--project-root", default=".")
+    usage_summary_cmd.add_argument("--stale-days", type=int, default=30)
+    usage_summary_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     dashboard_summary_cmd = sub.add_parser("dashboard-summary")
     dashboard_summary_cmd.add_argument("--project-root", default=".")
@@ -737,6 +812,34 @@ def main() -> int:
                 print(label)
                 for key, count in counts.items():
                     print(f"- {key}: {count}")
+        return 0
+
+    if args.command == "usage-summary":
+        project_root = Path(args.project_root).resolve()
+        payload = build_usage_summary(project_root, stale_days=args.stale_days)
+        if args.format == "json":
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            overview = payload["overview"]
+            print(
+                " ".join(
+                    [
+                        f"total_rules={overview['total_rules']}",
+                        f"retrieved_rules={overview['retrieved_rules']}",
+                        f"never_retrieved_rules={overview['never_retrieved_rules']}",
+                        f"stale_rules={overview['stale_rules']}",
+                        f"stale_days={overview['stale_days']}",
+                    ]
+                )
+            )
+            for item in payload["rules"]:
+                print(
+                    f"- {item['name']} status={item['status']} scope={item['learning_scope']} uses={item['use_count']} "
+                    f"refreshes={item['refresh_count']} promotes={item['promote_count']} last_retrieved={item['last_retrieved_at'] or '-'} "
+                    f"never_retrieved_since_promotion={item['never_retrieved_since_promotion']} stale={item['stale']}"
+                )
+                if item["stale_reason"]:
+                    print(f"  stale_reason={item['stale_reason']}")
         return 0
 
     if args.command == "dashboard-summary":

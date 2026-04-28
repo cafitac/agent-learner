@@ -116,6 +116,7 @@ def collect_rules(root: Path) -> list[dict[str, object]]:
                 "source_event": rule.source_event,
                 "derived_from_candidate": rule.derived_from_candidate,
                 "updated_at": rule.updated_at,
+                "last_used": rule.last_used,
                 "promote_count": rule.promote_count,
                 "refresh_count": rule.refresh_count,
                 "use_count": rule.use_count,
