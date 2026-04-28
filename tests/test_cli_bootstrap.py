@@ -723,6 +723,78 @@ def test_history_summary_groups_entries(monkeypatch, tmp_path: Path, capsys) -> 
     assert payload["matrix"]["claude"]["new_rule"] == 1
 
 
+def test_usage_summary_reports_retrieval_and_stale_signals(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
+    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+
+    used_rule = LearningRule(
+        name="used-rule",
+        rule="Keep tests updated.",
+        why="Frequently reused.",
+        scope="testing",
+        good_pattern="Update tests with behavior changes.",
+        avoid_pattern="Ship stale tests.",
+        summary="Frequently retrieved rule.",
+        status="approved",
+        promote_count=2,
+        refresh_count=1,
+        use_count=3,
+        last_used="2026-04-25",
+    )
+    never_used_rule = LearningRule(
+        name="never-used-rule",
+        rule="Document migrations before rollout.",
+        why="Still unproven.",
+        scope="migrations",
+        good_pattern="Write migration notes first.",
+        avoid_pattern="Ship undocumented migrations.",
+        summary="Promoted but never retrieved.",
+        status="approved",
+        promote_count=1,
+        use_count=0,
+    )
+    stale_rule = LearningRule(
+        name="stale-rule",
+        rule="Keep deployment notes concise.",
+        why="Looks old.",
+        scope="deploy",
+        good_pattern="Short deployment notes.",
+        avoid_pattern="Verbose deployment notes.",
+        summary="Old retrieved rule.",
+        status="approved",
+        promote_count=1,
+        use_count=2,
+        last_used="2026-03-01",
+    )
+    lifecycle.save_rule(used_rule)
+    lifecycle.save_rule(never_used_rule)
+    lifecycle.save_rule(stale_rule)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "usage-summary", "--project-root", str(tmp_path), "--stale-days", "30", "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["overview"]["total_rules"] == 3
+    assert payload["overview"]["retrieved_rules"] == 2
+    assert payload["overview"]["never_retrieved_rules"] == 1
+    assert payload["overview"]["stale_rules"] == 1
+
+    by_name = {item["name"]: item for item in payload["rules"]}
+    assert by_name["used-rule"]["use_count"] == 3
+    assert by_name["used-rule"]["last_retrieved_at"] == "2026-04-25"
+    assert by_name["used-rule"]["never_retrieved_since_promotion"] is False
+    assert by_name["used-rule"]["stale"] is False
+
+    assert by_name["never-used-rule"]["never_retrieved_since_promotion"] is True
+    assert by_name["never-used-rule"]["last_retrieved_at"] is None
+
+    assert by_name["stale-rule"]["stale"] is True
+    assert by_name["stale-rule"]["stale_reason"] == "unused 30d+"
+
+
 def test_overview_command_reports_dashboard_metrics(monkeypatch, tmp_path: Path, capsys) -> None:
     history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
