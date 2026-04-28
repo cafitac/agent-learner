@@ -7,7 +7,7 @@ Codex-specific overlay assets live here.
 - install `.codex/hooks.json`
 - install Codex-facing skills
 - install learning references
-- keep Codex integration thin while canonical learning state lives under `.agent-learner/`
+- keep Codex integration thin while canonical learning state lives under `AGENT_LEARNER_HOME` (default `~/.agent-learner/`)
 
 ## Design goal
 

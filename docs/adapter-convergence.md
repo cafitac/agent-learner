@@ -23,7 +23,7 @@ After inspecting the current local environments:
 - OMX adds routing/state/trace infrastructure, but not a shared learned-feedback control plane equivalent to Claude's `cc-learner`
 
 ### Hermes today (`.hermes` / `~/.hermes`)
-- thin experimental adapter path built around project-local learned rules
+- thin experimental adapter path built around globally stored learned rules with repo provenance
 - prompt-time context injection via the real Hermes `pre_llm_call` shell hook
 - session-end capture via the real Hermes `on_session_end` shell hook and normalized `session_end` events
 - shared retrieval and event-processing core reused instead of adding a Hermes-specific learner
@@ -41,9 +41,9 @@ Instead:
 ## What this repo now provides
 
 - shared retrieval/ranking core
-- shared normalized raw hook event location under `.agent-learner/events/`
-- transcript-aware candidate extraction into `.agent-learner/candidates/`
-- processed marker state under `.agent-learner/state/processed-events/`
+- shared normalized raw hook event location under `$AGENT_LEARNER_HOME/events/`
+- transcript-aware candidate extraction into `$AGENT_LEARNER_HOME/candidates/`
+- processed marker state under `$AGENT_LEARNER_HOME/state/processed-events/`
 - Codex prompt-time learning context injection
 - Hermes prompt-time learning context injection via `render-hermes-context`
 - Hermes normalized `session_end` event capture and processing

@@ -7,6 +7,7 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 ## [Unreleased]
 
 ### Changed
+- Documentation now describes the global-first storage model: `AGENT_LEARNER_HOME` (default `~/.agent-learner/`) is the canonical home, while project-local `.agent-learner/` assets are legacy migration sources rather than fallback stores.
 - Removed the legacy `install-codex`, `install-claude`, and `install-hermes` CLI commands. `agent-learner bootstrap` is now the only install entrypoint, with `--adapters` and per-adapter scope flags handling selective setup.
 - npm wrapper help, completion, and lane install forwarding now point to `bootstrap` instead of the removed top-level `install-*` aliases.
 - Hermes user-scope bootstrap now auto-merges `pre_llm_call` and `on_session_end` hooks into an existing `~/.hermes/config.yaml`, writes a backup before updating the active config, and keeps `config.agent-learner.yaml` as a re-sync/reference snippet.

@@ -8,11 +8,11 @@ provenance, comparison, and revision history.
 
 ## Current state
 
-`agent-learner` already has a shared-core data plane under `.agent-learner/`:
+`agent-learner` already has a shared-core data plane under `AGENT_LEARNER_HOME` (default `~/.agent-learner/`):
 
-- `.agent-learner/events/`
-- `.agent-learner/candidates/`
-- `.agent-learner/state/`
+- `$AGENT_LEARNER_HOME/events/`
+- `$AGENT_LEARNER_HOME/candidates/`
+- `$AGENT_LEARNER_HOME/state/`
 
 The earlier design problem was that Codex-side learning could write
 session-wrap artifacts into `.omx/wiki/session-log/`, which made the adapter
@@ -20,8 +20,8 @@ feel coupled to OMX even though OMX is supposed to be an optional runtime
 integration, not a required storage dependency.
 
 That coupling has been removed from the current repo direction: canonical
-learning state now lives under `.agent-learner/`, and external wiki/KB systems
-are outside the canonical lifecycle.
+learning state now lives under `AGENT_LEARNER_HOME`, and external wiki/KB
+systems are outside the canonical lifecycle.
 
 The current implementation also does **not** have a real "compare old learned
 rule vs new learned rule and update the existing rule with an explicit diff
@@ -65,13 +65,13 @@ This leads to a bad middle ground:
 
 ## Decision
 
-`agent-learner` will treat `.agent-learner/` as the only canonical storage root.
+`agent-learner` will treat `AGENT_LEARNER_HOME` as the only canonical storage root.
 
 Adapter and runtime folders stay thin:
 
 - `.codex/` and `.claude/` are adapter surfaces
 - `.omx/` and `.omc/` are optional integration surfaces
-- `.agent-learner/` is the learning system of record
+- `AGENT_LEARNER_HOME` is the learning system of record
 
 We will not keep full session logs as a default durable artifact.
 
@@ -96,10 +96,10 @@ that keeps wiki/KB systems outside the canonical learning scope.
 
 ## Canonical storage layout
 
-Proposed canonical tree:
+Implemented canonical tree:
 
 ```text
-.agent-learner/
+$AGENT_LEARNER_HOME/        # defaults to ~/.agent-learner/
   events/
     codex/
     claude/
@@ -121,9 +121,8 @@ Proposed canonical tree:
 
 Notes:
 
-- `learning/` becomes the canonical lifecycle root.
-- Existing `.codex/references/learning/` can remain adapter-facing for a migration
-  window, but the long-term source of truth should move to `.agent-learner/learning/`.
+- `learning/` is the canonical lifecycle root inside `AGENT_LEARNER_HOME`.
+- Existing `<project>/.agent-learner/` and `.codex/references/learning/` assets are migration sources; reads and writes use the global home after migration.
 - Wiki/KB systems remain external integrations, not part of the canonical tree.
 
 ## Why session logs are not the primary artifact
@@ -186,7 +185,7 @@ last_validated_by: "human-review"
 Add a canonical append-only ledger:
 
 ```text
-.agent-learner/history/promotions.jsonl
+$AGENT_LEARNER_HOME/history/promotions.jsonl
 ```
 
 Each entry records a learning decision:
@@ -565,12 +564,12 @@ In short:
 ### Phase 1
 
 - completed: stop writing canonical artifacts into `.omx/wiki/session-log/`
-- add `.agent-learner/history/promotions.jsonl`
+- add `$AGENT_LEARNER_HOME/history/promotions.jsonl`
 - add provenance fields to rule metadata
 
 ### Phase 2
 
-- move canonical lifecycle root from `.codex/references/learning/` to `.agent-learner/learning/`
+- move canonical lifecycle root from `.codex/references/learning/` and project-local `.agent-learner/learning/` into `$AGENT_LEARNER_HOME/learning/`
 - keep adapter-facing compatibility shims during migration
 
 ### Phase 3

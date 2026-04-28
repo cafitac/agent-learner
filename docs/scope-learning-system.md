@@ -44,7 +44,7 @@ That would weaken the OSS story and blur the product boundary.
 `agent-learner` should own and evolve only the learning-oriented data plane:
 
 ```text
-.agent-learner/
+$AGENT_LEARNER_HOME/        # defaults to ~/.agent-learner/
   events/
   candidates/
   learning/
@@ -59,6 +59,9 @@ These artifacts are the canonical inputs for:
 - review workflows
 - promotion/deprecation history
 - future `autoresearch`
+
+Project-specific behavior is tracked through repo identity, learning scope, and
+provenance metadata rather than a project-local canonical root.
 
 ## What is explicitly out of scope
 
