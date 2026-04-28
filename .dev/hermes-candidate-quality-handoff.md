@@ -128,6 +128,16 @@ Observed runtime phrase:
 
 This was collected as a useful real sample for future passes. It may help tune near-duplicate suppression or rule-family matching in the next round.
 
+### Sample D: contextless pronoun candidate should be rejected
+Observed runtime phrase after migrating local shards into the global home:
+- `Keep it concise.`
+
+Desired behavior:
+- reject as contextless/low-signal
+- do not leave it in the review queue as a durable rule candidate
+
+This is now implemented and tested.
+
 ## Verified commands used in this project
 Run tests with repo venv:
 - `PYTHONPATH=src .venv/bin/python -m pytest tests/test_pipeline.py -q`
