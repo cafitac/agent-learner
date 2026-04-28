@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .storage import agent_learner_home
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
@@ -19,6 +21,10 @@ class LearningEvent:
     session_id: str | None = None
     transcript_path: str | None = None
     payload: dict[str, object] = field(default_factory=dict)
+    repo_id: str | None = None
+    repo_root: str | None = None
+    worktree_path: str | None = None
+    repo_remote_url: str | None = None
 
 
 def build_learning_event(
@@ -29,6 +35,10 @@ def build_learning_event(
     session_id: str | None = None,
     transcript_path: str | None = None,
     payload: dict[str, object] | None = None,
+    repo_id: str | None = None,
+    repo_root: str | None = None,
+    worktree_path: str | None = None,
+    repo_remote_url: str | None = None,
 ) -> LearningEvent:
     return LearningEvent(
         adapter=adapter,
@@ -38,11 +48,15 @@ def build_learning_event(
         session_id=session_id,
         transcript_path=transcript_path,
         payload=payload or {},
+        repo_id=repo_id,
+        repo_root=repo_root,
+        worktree_path=worktree_path,
+        repo_remote_url=repo_remote_url,
     )
 
 
 def event_storage_dir(project_root: Path, adapter: str) -> Path:
-    return project_root / '.agent-learner' / 'events' / adapter
+    return agent_learner_home() / 'events' / adapter
 
 
 def write_learning_event(project_root: Path, event: LearningEvent) -> Path:

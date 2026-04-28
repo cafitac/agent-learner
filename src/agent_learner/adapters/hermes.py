@@ -420,7 +420,6 @@ def install_hermes_adapter_with_scope(target_root: Path, *, scope: str = "projec
     prompt_script = hooks_root / "hermes_prompt_context.py"
 
     if scope == "project":
-        ensure_dir(target_root / ".agent-learner" / "events" / "hermes")
         written.append(append_lines_if_missing(target_root / ".gitignore", ROOT_GITIGNORE_LINES))
 
     written.append(write_text(auto_script, AUTO_SESSION_LEARNING))

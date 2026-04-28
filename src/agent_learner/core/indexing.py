@@ -43,6 +43,9 @@ class RuleIndexEntry:
     harness: str = "universal"
     learning_scope: LearningScope = "project"
     source_project: str | None = None
+    repo_id: str | None = None
+    repo_root: str | None = None
+    worktree_path: str | None = None
 
 
 @dataclass(slots=True)
@@ -96,6 +99,9 @@ def rule_to_index_entry(learning_root: Path, path: Path, rule: LearningRule) -> 
         last_used=rule.last_used,
         learning_scope=rule.learning_scope,
         source_project=rule.source_project,
+        repo_id=rule.repo_id,
+        repo_root=rule.repo_root,
+        worktree_path=rule.worktree_path,
         harness=rule.harness,
     )
 

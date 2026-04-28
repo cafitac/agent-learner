@@ -78,6 +78,10 @@ class LearningRule:
     last_validated_by: str | None = None
     learning_scope: LearningScope = "project"
     source_project: str | None = None
+    repo_id: str | None = None
+    repo_root: str | None = None
+    worktree_path: str | None = None
+    repo_remote_url: str | None = None
     # v2 performance tracking
     success_count: int = 0
     fail_count: int = 0

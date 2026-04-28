@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .lifecycle import LearningLifecycle
 from .models import ComparisonDecisionType, LearningRule, utc_now_iso
-from .storage import append_jsonl, promotions_history_path, read_jsonl, resolve_learning_root
+from .storage import agent_learner_home, append_jsonl, migrate_local_learning_store_to_global, promotions_history_path, read_jsonl, resolve_learning_root
 from .events import LearningEvent, event_storage_dir
 
 RULE_HINT_RE = re.compile(
@@ -56,6 +56,10 @@ class LearningCandidate:
     scope: str
     evidence_excerpt: str
     transcript_path: str | None = None
+    repo_id: str | None = None
+    repo_root: str | None = None
+    worktree_path: str | None = None
+    repo_remote_url: str | None = None
     matched_rule: str | None = None
     decision: ComparisonDecisionType | None = None
     decision_reason: str | None = None
@@ -97,22 +101,23 @@ class CandidateRecord:
 
 
 def candidate_storage_dir(project_root: Path, adapter: str) -> Path:
-    return project_root / ".agent-learner" / "candidates" / adapter
+    return agent_learner_home() / "candidates" / adapter
 
 
 def processed_marker_dir(project_root: Path, processor: str, adapter: str) -> Path:
-    return project_root / ".agent-learner" / "state" / "processed-events" / processor / adapter
+    return agent_learner_home() / "state" / "processed-events" / processor / adapter
 
 
 def list_candidate_paths(project_root: Path, adapter: str | None = None) -> list[Path]:
+    migrate_local_learning_store_to_global(project_root)
     if adapter:
         return sorted(candidate_storage_dir(project_root, adapter).glob("candidate-*.md"))
-    roots = [path for path in (project_root / ".agent-learner" / "candidates").glob("*") if path.is_dir()]
+    root = agent_learner_home() / "candidates"
     paths: list[Path] = []
-    for root in roots:
-        paths.extend(sorted(root.glob("candidate-*.md")))
+    for adapter_dir in sorted(root.glob("*")):
+        if adapter_dir.is_dir():
+            paths.extend(sorted(adapter_dir.glob("candidate-*.md")))
     return sorted(paths)
-
 
 def load_candidate_record(path: Path) -> CandidateRecord:
     text = path.read_text(encoding="utf-8")
@@ -129,6 +134,10 @@ def load_candidate_record(path: Path) -> CandidateRecord:
         scope=str(sections.get("Scope") or ""),
         evidence_excerpt=str(sections.get("Evidence") or ""),
         transcript_path=str(metadata.get("transcript_path") or "") or None,
+        repo_id=str(metadata.get("repo_id") or "") or None,
+        repo_root=str(metadata.get("repo_root") or "") or None,
+        worktree_path=str(metadata.get("worktree_path") or "") or None,
+        repo_remote_url=str(metadata.get("repo_remote_url") or "") or None,
         matched_rule=str(metadata.get("matched_rule") or "") or None,
         decision=str(metadata.get("decision") or "") or None,
         decision_reason=str(metadata.get("decision_reason") or "") or None,
@@ -150,6 +159,10 @@ def save_candidate_record(record: CandidateRecord) -> Path:
         f"captured_at: {candidate.captured_at}",
         f"source_event_path: {candidate.source_event_path}",
         f"transcript_path: {candidate.transcript_path or ''}",
+        f"repo_id: {candidate.repo_id or ''}",
+        f"repo_root: {candidate.repo_root or ''}",
+        f"worktree_path: {candidate.worktree_path or ''}",
+        f"repo_remote_url: {candidate.repo_remote_url or ''}",
         f"status: {record.status}",
         f"decision: {candidate.decision or ''}",
         f"decision_reason: {json.dumps(candidate.decision_reason or '', ensure_ascii=False)}",
@@ -179,7 +192,8 @@ def save_candidate_record(record: CandidateRecord) -> Path:
 
 
 def list_event_paths(project_root: Path, adapter: str | None = None) -> list[Path]:
-    adapters = [adapter] if adapter else [path.name for path in (project_root / ".agent-learner" / "events").glob("*") if path.is_dir()]
+    migrate_local_learning_store_to_global(project_root)
+    adapters = [adapter] if adapter else [path.name for path in (agent_learner_home() / "events").glob("*") if path.is_dir()]
     paths: list[Path] = []
     for adapter_name in adapters:
         paths.extend(sorted(event_storage_dir(project_root, adapter_name).glob("*.json")))
@@ -196,6 +210,10 @@ def load_learning_event(event_path: Path) -> LearningEvent:
         session_id=payload.get("session_id"),
         transcript_path=payload.get("transcript_path"),
         payload=dict(payload.get("payload") or {}),
+        repo_id=str(payload.get("repo_id") or "") or None,
+        repo_root=str(payload.get("repo_root") or "") or None,
+        worktree_path=str(payload.get("worktree_path") or "") or None,
+        repo_remote_url=str(payload.get("repo_remote_url") or "") or None,
     )
 
 
@@ -212,6 +230,7 @@ def mark_processed(project_root: Path, event_path: Path, processor: str = "extra
 
 
 def process_unprocessed_events(project_root: Path, adapter: str | None = None, limit: int | None = None) -> list[ProcessedEventResult]:
+    migrate_local_learning_store_to_global(project_root)
     results: list[ProcessedEventResult] = []
     lifecycle = LearningLifecycle(resolve_learning_root(project_root))
     lifecycle.cleanup_drafts()
@@ -356,6 +375,10 @@ def extract_candidate_from_event(project_root: Path, event_path: Path, event: Le
         scope=f"{event.adapter} adapter event:{event.event_name}",
         evidence_excerpt=compact_text(evidence, 260),
         transcript_path=event.transcript_path,
+        repo_id=event.repo_id,
+        repo_root=event.repo_root,
+        worktree_path=event.worktree_path,
+        repo_remote_url=event.repo_remote_url,
     )
 
 
@@ -553,6 +576,13 @@ def auto_promote_candidate_as_rule(
     rule.decision_reason = comparison.reason
     rule.evidence_excerpt = candidate.evidence_excerpt
     rule.evidence = candidate.evidence_excerpt
+    rule.source_project = candidate.repo_root or project_root.name
+    rule.repo_id = candidate.repo_id
+    rule.repo_root = candidate.repo_root
+    rule.worktree_path = candidate.worktree_path
+    rule.repo_remote_url = candidate.repo_remote_url
+    if candidate.repo_id:
+        rule.projects = [candidate.repo_id]
     if comparison.decision == "fork_rule" and comparison.matched_rule:
         rule.related_rule = comparison.matched_rule
     saved = lifecycle.promote(rule)
@@ -635,6 +665,13 @@ def approve_candidate(project_root: Path, candidate_ref: str | Path) -> tuple[Ca
     rule.decision_reason = record.candidate.decision_reason
     rule.evidence_excerpt = record.candidate.evidence_excerpt
     rule.evidence = record.candidate.evidence_excerpt
+    rule.source_project = record.candidate.repo_root or project_root.name
+    rule.repo_id = record.candidate.repo_id
+    rule.repo_root = record.candidate.repo_root
+    rule.worktree_path = record.candidate.worktree_path
+    rule.repo_remote_url = record.candidate.repo_remote_url
+    if record.candidate.repo_id:
+        rule.projects = [record.candidate.repo_id]
     if existing_path is not None and record.candidate.decision == "revise_existing":
         rule.supersedes = rule_name
 

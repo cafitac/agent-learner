@@ -19,7 +19,7 @@ def test_bootstrap_codex_only(monkeypatch, tmp_path: Path) -> None:
     )
     assert cli_main() == 0
     assert (tmp_path / ".codex" / "hooks.json").exists()
-    assert (tmp_path / ".agent-learner" / "learning").exists()
+    assert (tmp_path / "home-learning" / "learning").exists()
     assert not (tmp_path / ".claude").exists()
 
 
@@ -85,7 +85,7 @@ def test_bootstrap_hermes_project_scope_creates_project_assets(monkeypatch, tmp_
         ["agent-learner", "bootstrap", "--adapters", "hermes", "--hermes-scope", "project", "--target", str(tmp_path)],
     )
     assert cli_main() == 0
-    assert (tmp_path / ".agent-learner" / "events" / "hermes").exists()
+    assert not (tmp_path / ".agent-learner" / "events" / "hermes").exists()
     assert (tmp_path / ".hermes" / "hooks" / "auto_session_learning.py").exists()
     assert (tmp_path / ".hermes" / "hooks" / "hermes_prompt_context.py").exists()
     assert (tmp_path / ".hermes" / "config.yaml").exists()
@@ -207,13 +207,13 @@ def test_bootstrap_migrates_legacy_codex_learning_assets(monkeypatch, tmp_path: 
         ["agent-learner", "bootstrap", "--target", str(tmp_path), "--adapters", "codex", "--codex-scope", "project"],
     )
     assert cli_main() == 0
-    assert (tmp_path / ".agent-learner" / "learning" / "approved" / "legacy-rule.md").exists()
+    assert (tmp_path / "home-learning" / "learning" / "approved" / "legacy-rule.md").exists()
     assert (tmp_path / ".agent-learner" / "state" / "storage-migration.json").exists()
 
 
 def test_render_codex_context_command_outputs_hook_json(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     lifecycle.promote(
         LearningRule(
             name="keep-tests-updated",
@@ -250,7 +250,7 @@ def test_render_codex_context_command_outputs_hook_json(monkeypatch, tmp_path: P
 
 def test_render_hermes_context_command_outputs_json(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     lifecycle.promote(
         LearningRule(
             name="hermes-tests-updated",
@@ -288,7 +288,7 @@ def test_render_hermes_context_command_outputs_json(monkeypatch, tmp_path: Path,
 
 def test_retrieve_command_outputs_ranked_rules(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     lifecycle.promote(
         LearningRule(
             name="prompt-hook-tests",
@@ -400,7 +400,7 @@ def test_capture_event_command_writes_hermes_session_end(monkeypatch, tmp_path: 
 def test_process_events_command_outputs_candidate_json(monkeypatch, tmp_path: Path, capsys) -> None:
     transcript = tmp_path / "session.jsonl"
     transcript.write_text(json.dumps({"message": "Always keep learned rules concise."}) + "\n", encoding="utf-8")
-    event_dir = tmp_path / ".agent-learner" / "events" / "claude"
+    event_dir = tmp_path / "home-learning" / "events" / "claude"
     event_dir.mkdir(parents=True, exist_ok=True)
     event_path = event_dir / "session_end-s1.json"
     event_path.write_text(json.dumps({
@@ -424,7 +424,7 @@ def test_process_events_command_outputs_candidate_json(monkeypatch, tmp_path: Pa
 def test_process_events_command_outputs_hermes_candidate_json(monkeypatch, tmp_path: Path, capsys) -> None:
     transcript = tmp_path / "session.jsonl"
     transcript.write_text(json.dumps({"message": "Always keep Hermes learning rules concise and reusable."}) + "\n", encoding="utf-8")
-    event_dir = tmp_path / ".agent-learner" / "events" / "hermes"
+    event_dir = tmp_path / "home-learning" / "events" / "hermes"
     event_dir.mkdir(parents=True, exist_ok=True)
     event_path = event_dir / "session_end-h1.json"
     event_path.write_text(json.dumps({
@@ -449,7 +449,7 @@ def test_process_events_command_outputs_hermes_candidate_json(monkeypatch, tmp_p
 def test_review_candidates_and_approve_candidate_commands(monkeypatch, tmp_path: Path, capsys) -> None:
     transcript = tmp_path / "session.jsonl"
     transcript.write_text(json.dumps({"message": "Always update tests whenever behavior changes in services."}) + "\n", encoding="utf-8")
-    event_dir = tmp_path / ".agent-learner" / "events" / "codex"
+    event_dir = tmp_path / "home-learning" / "events" / "codex"
     event_dir.mkdir(parents=True, exist_ok=True)
     event_path = event_dir / "stop-s1.json"
     event_path.write_text(json.dumps({
@@ -499,7 +499,7 @@ def test_review_candidates_command_filters_hermes_candidates(monkeypatch, tmp_pa
         ),
         encoding="utf-8",
     )
-    event_dir = tmp_path / ".agent-learner" / "events" / "hermes"
+    event_dir = tmp_path / "home-learning" / "events" / "hermes"
     event_dir.mkdir(parents=True, exist_ok=True)
     (event_dir / "session_end-h1.json").write_text(
         json.dumps(
@@ -535,7 +535,7 @@ def test_review_candidates_command_filters_hermes_candidates(monkeypatch, tmp_pa
 def test_history_command_filters_entries(monkeypatch, tmp_path: Path, capsys) -> None:
     transcript = tmp_path / "session.jsonl"
     transcript.write_text(json.dumps({"message": "Always keep tests updated in services."}) + "\n", encoding="utf-8")
-    event_dir = tmp_path / ".agent-learner" / "events" / "codex"
+    event_dir = tmp_path / "home-learning" / "events" / "codex"
     event_dir.mkdir(parents=True, exist_ok=True)
     event_path = event_dir / "stop-s1.json"
     event_path.write_text(json.dumps({
@@ -597,7 +597,7 @@ def test_history_command_filters_hermes_entries(monkeypatch, tmp_path: Path, cap
         ),
         encoding="utf-8",
     )
-    event_dir = tmp_path / ".agent-learner" / "events" / "hermes"
+    event_dir = tmp_path / "home-learning" / "events" / "hermes"
     event_dir.mkdir(parents=True, exist_ok=True)
     (event_dir / "session_end-h1.json").write_text(
         json.dumps(
@@ -630,7 +630,7 @@ def test_history_command_filters_hermes_entries(monkeypatch, tmp_path: Path, cap
 
 
 def test_history_command_supports_latest_per_rule(monkeypatch, tmp_path: Path, capsys) -> None:
-    history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
+    history_path = tmp_path / "home-learning" / "history" / "promotions.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_text(
         json.dumps({"ts": "2026-04-20T00:00:01Z", "action": "promote", "rule": "keep-tests", "source_adapter": "codex"}) + "\n"
@@ -672,7 +672,7 @@ def test_history_command_supports_latest_per_rule(monkeypatch, tmp_path: Path, c
 
 
 def test_history_summary_groups_entries(monkeypatch, tmp_path: Path, capsys) -> None:
-    history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
+    history_path = tmp_path / "home-learning" / "history" / "promotions.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_text(
         json.dumps({"ts": "2026-04-20T00:00:01Z", "action": "promote", "rule": "keep-tests", "source_adapter": "codex", "decision": "new_rule"}) + "\n"
@@ -725,7 +725,7 @@ def test_history_summary_groups_entries(monkeypatch, tmp_path: Path, capsys) -> 
 
 def test_usage_summary_reports_retrieval_and_stale_signals(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
 
     used_rule = LearningRule(
         name="used-rule",
@@ -796,7 +796,7 @@ def test_usage_summary_reports_retrieval_and_stale_signals(monkeypatch, tmp_path
 
 
 def test_overview_command_reports_dashboard_metrics(monkeypatch, tmp_path: Path, capsys) -> None:
-    history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
+    history_path = tmp_path / "home-learning" / "history" / "promotions.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_text(
         json.dumps({"ts": "2026-04-20T00:00:01Z", "action": "promote", "rule": "keep-tests", "source_adapter": "codex", "decision": "new_rule"}) + "\n"
@@ -821,7 +821,7 @@ def test_overview_command_reports_dashboard_metrics(monkeypatch, tmp_path: Path,
 
 def test_dashboard_summary_and_generate_dashboard_commands(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    learning_root = tmp_path / ".agent-learner" / "learning"
+    learning_root = tmp_path / "home-learning" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     lifecycle.promote(
         LearningRule(
@@ -868,7 +868,7 @@ def test_dashboard_summary_and_generate_dashboard_commands(monkeypatch, tmp_path
 
 def test_webapp_helpers_support_actions(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    learning_root = tmp_path / ".agent-learner" / "learning"
+    learning_root = tmp_path / "home-learning" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     lifecycle.promote(
         LearningRule(
@@ -1008,7 +1008,7 @@ def test_format_doctor_text_includes_next_command(tmp_path: Path) -> None:
 
 def test_promote_global_command_copies_rule_to_global_learning(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    learning_root = tmp_path / ".agent-learner" / "learning"
+    learning_root = tmp_path / "home-learning" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     lifecycle.promote(
         LearningRule(
@@ -1034,7 +1034,7 @@ def test_promote_global_command_copies_rule_to_global_learning(monkeypatch, tmp_
 
 def test_sync_global_promotes_eligible_rules(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    learning_root = tmp_path / ".agent-learner" / "learning"
+    learning_root = tmp_path / "home-learning" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     rule = LearningRule(
         name="eligible-rule",
@@ -1115,7 +1115,7 @@ def test_dashboard_summary_auto_reapproves_needs_review_rule_for_current_model(t
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "current-model.txt").write_text("claude-sonnet-4-7\n", encoding="utf-8")
 
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     rule = LearningRule(
         name="auto-reapproved",
         rule="Keep tests updated.",
@@ -1136,7 +1136,7 @@ def test_dashboard_summary_auto_reapproves_needs_review_rule_for_current_model(t
 
 def test_dashboard_summary_categorizes_exception_reasons(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     rule = LearningRule(
         name="review-rule",
         rule="Update tests whenever behavior changes.",
@@ -1149,7 +1149,7 @@ def test_dashboard_summary_categorizes_exception_reasons(tmp_path: Path) -> None
     )
     lifecycle.mark_needs_review(rule)
 
-    candidates_dir = tmp_path / ".agent-learner" / "candidates" / "codex"
+    candidates_dir = tmp_path / "home-learning" / "candidates" / "codex"
     candidates_dir.mkdir(parents=True, exist_ok=True)
     candidate_path = candidates_dir / "candidate-conflict.md"
     candidate_path.write_text(
@@ -1186,7 +1186,7 @@ def test_dashboard_summary_categorizes_exception_reasons(tmp_path: Path) -> None
 def test_dashboard_summary_reports_automation_metrics(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
-    history_path = tmp_path / ".agent-learner" / "history" / "promotions.jsonl"
+    history_path = tmp_path / "home-learning" / "history" / "promotions.jsonl"
     history_path.parent.mkdir(parents=True, exist_ok=True)
     history_path.write_text(
         "\n".join(
@@ -1199,7 +1199,7 @@ def test_dashboard_summary_reports_automation_metrics(monkeypatch, tmp_path: Pat
         + "\n",
         encoding="utf-8",
     )
-    candidates_dir = tmp_path / ".agent-learner" / "candidates" / "codex"
+    candidates_dir = tmp_path / "home-learning" / "candidates" / "codex"
     candidates_dir.mkdir(parents=True, exist_ok=True)
     (candidates_dir / "candidate-review.md").write_text(
         "---\n"
@@ -1283,7 +1283,7 @@ def test_detect_context_set_model_and_sweep_commands(monkeypatch, tmp_path: Path
     payload = json.loads(capsys.readouterr().out)
     assert payload["current_model"] == "claude-opus-4-7"
 
-    learning_root = tmp_path / ".agent-learner" / "learning"
+    learning_root = tmp_path / "home-learning" / "learning"
     lifecycle = LearningLifecycle(learning_root)
     rule = LearningRule(
         name="sweep-me",
@@ -1306,7 +1306,7 @@ def test_detect_context_set_model_and_sweep_commands(monkeypatch, tmp_path: Path
 
 
 def test_rebuild_index_command_outputs_paths(monkeypatch, tmp_path: Path, capsys) -> None:
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     lifecycle.promote(
         LearningRule(
             name="index-me",

@@ -28,8 +28,10 @@ def build_dashboard_summary(project_root: Path) -> dict[str, object]:
     global_rules = collect_rules(global_root)
     merged_rules = merge_rules(local_rules, global_rules)
     candidates = collect_candidates(project_root)
-    local_history = attach_scope(read_jsonl(promotions_history_path(project_root)), "project")
-    global_history = attach_scope(read_jsonl(global_history_path()), "global")
+    local_history_path = promotions_history_path(project_root)
+    canonical_history_path = global_history_path()
+    local_history = attach_scope(read_jsonl(local_history_path), "project") if local_history_path.resolve() != canonical_history_path.resolve() else []
+    global_history = attach_scope(read_jsonl(canonical_history_path), "global")
     combined_history = sorted(local_history + global_history, key=lambda item: str(item.get("ts") or ""), reverse=True)
 
     summary = {
@@ -243,7 +245,15 @@ def automation_trends(history: list[dict[str, object]], candidates: list[dict[st
 
 def summarize_rule_exceptions(local_rules: list[dict[str, object]], global_rules: list[dict[str, object]]) -> dict[str, int]:
     rules = [rule for rule in [*local_rules, *global_rules] if str(rule.get("status") or "") == "needs_review"]
-    reasons = [categorize_exception_reason(str(rule.get("decision_reason") or rule.get("why") or "")) for rule in rules]
+    deduped: dict[tuple[str, str, str], dict[str, object]] = {}
+    for rule in rules:
+        key = (
+            str(rule.get("name") or ""),
+            str(rule.get("status") or ""),
+            str(rule.get("decision_reason") or rule.get("why") or ""),
+        )
+        deduped.setdefault(key, rule)
+    reasons = [categorize_exception_reason(str(rule.get("decision_reason") or rule.get("why") or "")) for rule in deduped.values()]
     return dict(sorted(Counter(reasons).items(), key=lambda item: (-item[1], item[0])))
 
 

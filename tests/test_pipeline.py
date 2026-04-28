@@ -14,7 +14,7 @@ from agent_learner.core.pipeline import (
 
 
 def promote_rule(tmp_path: Path, **overrides: object) -> None:
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     rule = LearningRule(
         name=str(overrides.pop("name", "existing-rule")),
         rule=str(overrides.pop("rule", "Update tests whenever behavior changes.")),
@@ -217,10 +217,10 @@ def test_process_events_refreshes_existing_rule_and_writes_ledger(tmp_path: Path
     assert results[0].status == "rule_refreshed"
     assert results[0].decision == "refresh_existing"
     assert results[0].candidate_path is not None
-    ledger = (tmp_path / ".agent-learner" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
+    ledger = (tmp_path / "home-learning" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
     assert '"action": "refresh"' in ledger
 
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     refreshed = lifecycle.load_rule("keep-tests-aligned")
     assert refreshed.refresh_count == 1
     assert refreshed.decision == "refresh_existing"
@@ -345,11 +345,11 @@ def test_process_events_keeps_revision_candidate_in_queue_when_review_required(t
     candidate_record = load_candidate_record(candidate_path)
     assert candidate_record.status == "draft_candidate"
     assert candidate_record.candidate.review_required is True
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     revised = lifecycle.load_rule("update-tests")
     assert revised.decision is None
     assert revised.supersedes is None
-    ledger = (tmp_path / ".agent-learner" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
+    ledger = (tmp_path / "home-learning" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
     assert '"field_diffs_summary"' in ledger
     assert 'rule:' in ledger
 
@@ -373,7 +373,7 @@ def test_process_events_rejects_generic_candidate_and_writes_rejection_ledger(tm
     assert results[0].status == "candidate_rejected"
     assert results[0].decision == "reject_candidate"
     assert results[0].candidate_path is not None
-    ledger = (tmp_path / ".agent-learner" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
+    ledger = (tmp_path / "home-learning" / "history" / "promotions.jsonl").read_text(encoding="utf-8")
     assert '"action": "reject_candidate"' in ledger
 
 
@@ -446,7 +446,7 @@ def test_process_events_keeps_operational_debug_note_in_candidate_queue_until_re
     assert second[0].rule_path is not None
     second_candidate = load_candidate_record(Path(second[0].candidate_path or ""))
     assert second_candidate.status == "auto_applied"
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     promoted = lifecycle.load_rule(second[0].matched_rule or "distinguish-omx-hook-messages-from-agentlearner")
     assert promoted.status == "approved"
 
@@ -483,7 +483,7 @@ def test_process_events_marks_related_conflict_as_fork_rule(tmp_path: Path) -> N
     assert candidate_record.status == "auto_applied"
     assert candidate_record.candidate.review_required is False
     assert candidate_record.candidate.confidence == "high"
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     forked = lifecycle.load_rule(results[0].matched_rule or "")
     assert forked.related_rule == "retry-network-failures"
 
@@ -516,7 +516,7 @@ def test_process_events_allows_short_specific_rule_to_refresh(tmp_path: Path) ->
 
 
 def test_process_events_reapprove_needs_review_rule_when_evidence_is_clear(tmp_path: Path) -> None:
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     rule = LearningRule(
         name="clear-review-rule",
         rule="Keep tests updated.",
@@ -551,7 +551,7 @@ def test_process_events_reapprove_needs_review_rule_when_evidence_is_clear(tmp_p
 
 
 def test_process_events_reapprove_needs_review_rule_when_revision_is_clear(tmp_path: Path) -> None:
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     rule = LearningRule(
         name="service-tests-rule",
         rule="Update tests whenever behavior changes.",
