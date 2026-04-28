@@ -75,7 +75,7 @@ Docker is optional convenience only. It is not the primary OSS install path.
 - events, candidates, history, rules, and indexes are stored in that global home
 - repo-specific behavior is selected by repo identity, learning scope, and provenance metadata rather than by a project-local storage root
 - existing `<project>/.agent-learner/` and `.codex/references/learning/` assets are treated as legacy migration sources, not normal fallback stores
-- `agent-learner storage-doctor --project-root "$PWD" --format json` reports the canonical home, global artifact counts, legacy source state, migration markers, warnings, and suggested next commands
+- `agent-learner storage-doctor --project-root "$PWD" --format json` reports the canonical home, global artifact counts, legacy source state, migration markers, warnings, and source-specific suggested next commands such as Codex-only bootstrap for unmigrated `.codex/references/learning/` files
 - Codex, Claude, and Hermes can be installed at user scope while still resolving the active repo from `cwd`
 - external wiki/KB systems remain separate and are not part of the canonical learning lifecycle
 

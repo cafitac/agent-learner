@@ -174,13 +174,15 @@ def collect_storage_doctor(project_root: Path) -> dict[str, Any]:
     ]
 
     warnings: list[dict[str, str]] = []
+    local_migration_command = f"agent-learner bootstrap --target {project_root}"
+    codex_migration_command = f"agent-learner bootstrap --target {project_root} --adapters codex --codex-scope project"
     if _has_any_files(local_counts) and not local_marker.get("exists"):
         warnings.append(
             {
                 "code": "legacy_source_missing_migration_marker",
                 "path": str(local_root),
                 "message": "Project-local .agent-learner files exist without a storage migration marker.",
-                "next_command": f"agent-learner bootstrap --target {project_root}",
+                "next_command": local_migration_command,
             }
         )
     if local_unmirrored:
@@ -189,16 +191,16 @@ def collect_storage_doctor(project_root: Path) -> dict[str, Any]:
                 "code": "legacy_source_has_unmigrated_files",
                 "path": str(local_root),
                 "message": "Project-local .agent-learner files are not present in AGENT_LEARNER_HOME.",
-                "next_command": f"agent-learner bootstrap --target {project_root}",
+                "next_command": local_migration_command,
             }
         )
     if codex_unmirrored:
         warnings.append(
             {
-                "code": "legacy_source_has_unmigrated_files",
+                "code": "legacy_codex_learning_unmigrated",
                 "path": str(codex_legacy_root),
-                "message": "Legacy Codex learning files are not present in AGENT_LEARNER_HOME.",
-                "next_command": f"agent-learner bootstrap --target {project_root}",
+                "message": "Legacy Codex learning files are not present in AGENT_LEARNER_HOME; run the Codex bootstrap path to copy them into canonical global storage.",
+                "next_command": codex_migration_command,
             }
         )
 
@@ -218,8 +220,10 @@ def collect_storage_doctor(project_root: Path) -> dict[str, Any]:
         f"agent-learner rebuild-index --project-root {project_root}",
         f"agent-learner usage-summary --project-root {project_root} --format json",
     ]
-    if warnings:
-        next_commands.insert(0, f"agent-learner bootstrap --target {project_root}")
+    for warning in reversed(warnings):
+        command = warning.get("next_command")
+        if command and command not in next_commands:
+            next_commands.insert(0, command)
 
     return {
         "project_root": str(project_root),

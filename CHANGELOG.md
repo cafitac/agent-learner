@@ -6,6 +6,9 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+### Fixed
+- `agent-learner storage-doctor` now reports unmigrated legacy Codex learning files with a distinct warning code and a Codex-scoped bootstrap remediation command, instead of only suggesting the generic bootstrap path.
+
 ## [0.3.26] - 2026-04-28
 
 ### Fixed
