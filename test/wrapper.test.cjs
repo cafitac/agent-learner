@@ -302,12 +302,23 @@ test('printHelp advertises bootstrap as the install path', () => {
   assert.doesNotMatch(output, /install-claude/);
 });
 
-test('runWrapperUpdate shells out to npm global install', () => {
+test('runWrapperUpdate prefers the npm next to the active node executable', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-learner-wrapper-update-'));
+  const binDir = path.join(tempRoot, 'bin');
+  fs.mkdirSync(binDir, { recursive: true });
+  const nodeExecutable = path.join(binDir, process.platform === 'win32' ? 'node.exe' : 'node');
+  const npmExecutable = path.join(binDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
+  fs.writeFileSync(nodeExecutable, '');
+  fs.writeFileSync(npmExecutable, '');
+
   const calls = [];
   const fakeRunner = (tool, args) => {
     calls.push({ tool, args });
     return { status: 0, stdout: '', stderr: '' };
   };
-  assert.equal(runWrapperUpdate('pipe', fakeRunner), 0);
-  assert.deepEqual(calls[0], { tool: 'npm', args: ['install', '-g', '@cafitac/agent-learner@latest'] });
+  assert.equal(runWrapperUpdate('pipe', fakeRunner, nodeExecutable), 0);
+  assert.deepEqual(calls[0], {
+    tool: npmExecutable,
+    args: ['install', '-g', '@cafitac/agent-learner@latest']
+  });
 });
