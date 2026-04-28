@@ -25,6 +25,7 @@ from agent_learner.core.global_learning import apply_candidate_action, promote_r
 from agent_learner.core.context import detect_context, write_current_model
 from agent_learner.core.dashboard import build_dashboard_summary, write_dashboard_files, collect_rules, merge_rules
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
+from agent_learner.core.storage_doctor import collect_storage_doctor, format_storage_doctor_text
 from agent_learner.core.indexing import rebuild_rule_index
 from agent_learner.core.events import build_learning_event, write_learning_event
 from agent_learner.core.repo_identity import detect_repo_identity
@@ -231,6 +232,14 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_cmd.add_argument("--host", default="127.0.0.1")
     doctor_cmd.add_argument("--port", type=int, default=8766)
     doctor_cmd.add_argument("--format", choices=["text", "json"], default="text")
+
+    storage_doctor_cmd = sub.add_parser("storage-doctor")
+    storage_doctor_cmd.add_argument("--project-root", default=".")
+    storage_doctor_cmd.add_argument("--format", choices=["text", "json"], default="text")
+
+    audit_storage_cmd = sub.add_parser("audit-storage-layout")
+    audit_storage_cmd.add_argument("--project-root", default=".")
+    audit_storage_cmd.add_argument("--format", choices=["text", "json"], default="text")
 
     dashboard_cmd = sub.add_parser("dashboard")
     dashboard_cmd.add_argument("--project-root", default=".")
@@ -444,6 +453,13 @@ def main() -> int:
             print(json.dumps(report, ensure_ascii=False, indent=2))
         else:
             print(format_doctor_text(report))
+        return 0
+    if args.command in {"storage-doctor", "audit-storage-layout"}:
+        report = collect_storage_doctor(Path(args.project_root))
+        if args.format == "json":
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(format_storage_doctor_text(report))
         return 0
     if args.command == "dashboard":
         project_root = Path(args.project_root).resolve()

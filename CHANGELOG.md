@@ -6,6 +6,9 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+### Added
+- `agent-learner storage-doctor` and alias `agent-learner audit-storage-layout` report the canonical `AGENT_LEARNER_HOME`, global artifact counts, legacy/local source state, migration marker details, warnings, and suggested next commands without mutating storage.
+
 ### Changed
 - Documentation now describes the global-first storage model: `AGENT_LEARNER_HOME` (default `~/.agent-learner/`) is the canonical home, while project-local `.agent-learner/` assets are legacy migration sources rather than fallback stores.
 - Removed the legacy `install-codex`, `install-claude`, and `install-hermes` CLI commands. `agent-learner bootstrap` is now the only install entrypoint, with `--adapters` and per-adapter scope flags handling selective setup.
