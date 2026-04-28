@@ -44,6 +44,11 @@ OPERATIONAL_CONTEXT_TERMS = {
     "triage",
 }
 TOOLING_NOTE_TERMS = {"omx", "agentlearner", "codex", "claude", "hermit", "channel", "channels", "hook", "hooks"}
+TASK_SPECIFIC_REVIEW_CONSTRAINT_PATTERNS = (
+    re.compile(r"\bdo not modify files\b", re.IGNORECASE),
+    re.compile(r"\bdo not assume prior reviews are correct\b", re.IGNORECASE),
+    re.compile(r"\bdo not inspect or report unrelated files\b", re.IGNORECASE),
+)
 
 
 @dataclass(slots=True)
@@ -730,6 +735,8 @@ def decision_to_history_action(decision: ComparisonDecisionType) -> str:
 def candidate_rejection_reason(candidate: LearningCandidate) -> str | None:
     if candidate_looks_like_malformed_code_or_log_fragment(candidate):
         return "candidate signal looks like a malformed code or log fragment, not a durable rule"
+    if candidate_looks_like_task_specific_review_constraint(candidate):
+        return "candidate signal is a task-specific review constraint, not a durable rule"
     tokens = tokenize_for_compare(candidate.suggested_rule)
     useful = [
         token
@@ -741,6 +748,13 @@ def candidate_rejection_reason(candidate: LearningCandidate) -> str | None:
     if len(useful) <= 2 and any(token in CONTEXTUAL_PRONOUNS for token in tokens):
         return "candidate signal is too contextless to become a durable rule"
     return None
+
+
+def candidate_looks_like_task_specific_review_constraint(candidate: LearningCandidate) -> bool:
+    text = compact_text(" ".join([candidate.suggested_rule, candidate.summary, candidate.evidence_excerpt]), 500).strip()
+    if not text:
+        return False
+    return any(pattern.search(text) for pattern in TASK_SPECIFIC_REVIEW_CONSTRAINT_PATTERNS)
 
 
 def candidate_looks_like_malformed_code_or_log_fragment(candidate: LearningCandidate) -> bool:
