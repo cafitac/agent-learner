@@ -5,7 +5,7 @@ from agent_learner.adapters import install_claude_adapter, install_codex_adapter
 from agent_learner.adapters.claude import install_claude_adapter_with_scope as install_claude_adapter_with_scope
 from agent_learner.adapters.codex import install_codex_adapter_with_scope
 from agent_learner.adapters.hermes import install_hermes_adapter_with_scope
-from agent_learner.core.storage import read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
+from agent_learner.core.storage import global_learning_root, read_project_registry, register_project, resolve_learning_root, should_register_project, storage_migration_marker_path
 
 
 def test_install_codex_adapter_creates_expected_assets(tmp_path: Path) -> None:
@@ -83,7 +83,7 @@ def test_install_claude_adapter_user_scope_creates_user_assets_only(tmp_path: Pa
 def test_install_hermes_adapter_creates_expected_assets(tmp_path: Path) -> None:
     written = install_hermes_adapter(tmp_path)
     hermes_root = tmp_path / ".hermes"
-    assert (tmp_path / ".agent-learner" / "events" / "hermes").exists()
+    assert not (tmp_path / ".agent-learner" / "events" / "hermes").exists()
     assert (hermes_root / "hooks" / "auto_session_learning.py").exists()
     assert (hermes_root / "hooks" / "hermes_prompt_context.py").exists()
     assert (hermes_root / "config.yaml").exists()
@@ -193,14 +193,15 @@ def test_install_codex_adapter_migrates_legacy_learning_assets(tmp_path: Path) -
 
     written = install_codex_adapter(tmp_path)
 
-    migrated_rule = tmp_path / ".agent-learner" / "learning" / "approved" / "legacy-rule.md"
+    migrated_rule = global_learning_root() / "approved" / "legacy-rule.md"
     assert migrated_rule.exists()
     assert storage_migration_marker_path(tmp_path).exists()
-    assert resolve_learning_root(tmp_path) == tmp_path / ".agent-learner" / "learning"
+    assert resolve_learning_root(tmp_path) == global_learning_root()
     assert migrated_rule in written
 
 
-def test_resolve_learning_root_prefers_legacy_until_migration_marker(tmp_path: Path) -> None:
+def test_resolve_learning_root_migrates_legacy_assets_into_global_root(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home"))
     legacy_rule = tmp_path / ".codex" / "references" / "learning" / "approved" / "legacy-rule.md"
     legacy_rule.parent.mkdir(parents=True, exist_ok=True)
     legacy_rule.write_text("legacy", encoding="utf-8")
@@ -208,7 +209,12 @@ def test_resolve_learning_root_prefers_legacy_until_migration_marker(tmp_path: P
     canonical_rule.parent.mkdir(parents=True, exist_ok=True)
     canonical_rule.write_text("canonical", encoding="utf-8")
 
-    assert resolve_learning_root(tmp_path) == tmp_path / ".codex" / "references" / "learning"
+    resolved = resolve_learning_root(tmp_path)
+
+    assert resolved == global_learning_root()
+    assert (global_learning_root() / "approved" / "legacy-rule.md").exists()
+    assert (global_learning_root() / "approved" / "canonical-rule.md").exists()
+    assert storage_migration_marker_path(tmp_path).exists()
 
 
 def test_should_register_project_rejects_pytest_temp_paths(tmp_path: Path) -> None:

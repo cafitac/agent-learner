@@ -105,7 +105,7 @@ def test_retrieve_respects_token_budget_and_status_weight(tmp_path: Path) -> Non
 
 def test_render_codex_learning_context_only_includes_selected_rules(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     promote_rule(
         lifecycle,
         name="behavior-tests",
@@ -125,7 +125,7 @@ def test_render_codex_learning_context_only_includes_selected_rules(monkeypatch,
     )
 
     context = render_codex_learning_context(
-        tmp_path / ".agent-learner" / "learning",
+        tmp_path / "home-learning" / "learning",
         "fix behavior bug and keep tests green",
         task_type="bugfix",
         token_budget=120,
@@ -139,7 +139,7 @@ def test_retrieve_respects_context_and_model_gating(monkeypatch, tmp_path: Path)
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
     (tmp_path / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
     write_current_model(tmp_path, "claude-opus-4-7")
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     promote_rule(
         lifecycle,
         name="python-approved",
@@ -168,7 +168,7 @@ def test_retrieve_respects_context_and_model_gating(monkeypatch, tmp_path: Path)
 
 def test_render_codex_learning_context_merges_global_learning_rules(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("AGENT_LEARNER_HOME", str(tmp_path / "home-learning"))
-    local_lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    local_lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     promote_rule(
         local_lifecycle,
         name="local-rule",
@@ -190,7 +190,7 @@ def test_render_codex_learning_context_merges_global_learning_rules(monkeypatch,
     )
 
     context = render_codex_learning_context(
-        tmp_path / ".agent-learner" / "learning",
+        tmp_path / "home-learning" / "learning",
         "refactor migrations safely",
         task_type="refactor",
         token_budget=200,
@@ -200,7 +200,7 @@ def test_render_codex_learning_context_merges_global_learning_rules(monkeypatch,
 
 
 def test_lifecycle_frontmatter_decodes_quoted_string_values(tmp_path: Path) -> None:
-    rule_path = tmp_path / ".agent-learner" / "learning" / "approved" / "quoted-status.md"
+    rule_path = tmp_path / "home-learning" / "learning" / "approved" / "quoted-status.md"
     rule_path.parent.mkdir(parents=True, exist_ok=True)
     rule_path.write_text(
         """---
@@ -231,7 +231,7 @@ Leave tests stale.
 """,
         encoding="utf-8",
     )
-    lifecycle = LearningLifecycle(tmp_path / ".agent-learner" / "learning")
+    lifecycle = LearningLifecycle(tmp_path / "home-learning" / "learning")
     rule = lifecycle.load_rule(rule_path)
     assert rule.status == "approved"
     assert rule.learning_scope == "global"

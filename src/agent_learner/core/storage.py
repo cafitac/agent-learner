@@ -16,7 +16,7 @@ def agent_learner_home() -> Path:
 
 
 def global_learning_home() -> Path:
-    return agent_learner_home() / "global"
+    return agent_learner_home()
 
 
 def global_learning_root() -> Path:
@@ -32,7 +32,9 @@ def project_registry_path() -> Path:
 
 
 def canonical_learning_root(project_root: Path) -> Path:
-    return project_root / ".agent-learner" / "learning"
+    migrate_local_learning_store_to_global(project_root)
+    migrate_legacy_learning_assets(project_root)
+    return global_learning_root()
 
 
 def legacy_codex_learning_root(project_root: Path) -> Path:
@@ -40,25 +42,13 @@ def legacy_codex_learning_root(project_root: Path) -> Path:
 
 
 def resolve_learning_root(project_root: Path) -> Path:
-    canonical = canonical_learning_root(project_root)
-    legacy = legacy_codex_learning_root(project_root)
-    marker = storage_migration_marker_path(project_root)
-    if canonical.exists() and legacy.exists():
-        if marker.exists():
-            return canonical
-        if has_learning_assets(canonical) and not has_learning_assets(legacy):
-            return canonical
-        return legacy
-    if canonical.exists() or not legacy.exists():
-        return canonical
-    return legacy
+    migrate_local_learning_store_to_global(project_root)
+    migrate_legacy_learning_assets(project_root)
+    return global_learning_root()
 
 
 def ensure_learning_root(project_root: Path) -> Path:
-    root = canonical_learning_root(project_root)
-    for bucket in LEARNING_BUCKETS:
-        (root / bucket).mkdir(parents=True, exist_ok=True)
-    return root
+    return ensure_global_learning_root()
 
 
 def ensure_global_learning_root() -> Path:
@@ -69,7 +59,8 @@ def ensure_global_learning_root() -> Path:
 
 
 def promotions_history_path(project_root: Path) -> Path:
-    return project_root / ".agent-learner" / "history" / "promotions.jsonl"
+    migrate_local_learning_store_to_global(project_root)
+    return global_history_path()
 
 
 def storage_migration_marker_path(project_root: Path) -> Path:
@@ -88,7 +79,30 @@ def has_learning_assets(root: Path) -> bool:
 def write_storage_migration_marker(project_root: Path, payload: dict[str, object]) -> Path:
     path = storage_migration_marker_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    existing: dict[str, object] = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            existing = {}
+
+    merged = dict(existing)
+    merged.update(payload)
+
+    existing_counts = existing.get("copied_counts") if isinstance(existing.get("copied_counts"), dict) else {}
+    new_counts = payload.get("copied_counts") if isinstance(payload.get("copied_counts"), dict) else None
+    if new_counts is not None:
+        merged["copied_counts"] = {
+            key: max(int(existing_counts.get(key, 0)), int(new_counts.get(key, 0)))
+            for key in sorted(set(existing_counts) | set(new_counts))
+        }
+
+    existing_files = existing.get("copied_files") if isinstance(existing.get("copied_files"), list) else []
+    new_files = payload.get("copied_files") if isinstance(payload.get("copied_files"), list) else None
+    if new_files is not None:
+        merged["copied_files"] = sorted({str(item) for item in [*existing_files, *new_files]})
+
+    path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -147,14 +161,46 @@ def register_project(project_root: Path) -> Path:
 
 
 def effective_learning_roots(project_root: Path) -> list[Path]:
-    roots: list[Path] = []
-    local = resolve_learning_root(project_root)
-    if local.exists():
-        roots.append(local)
-    global_root = global_learning_root()
-    if global_root.exists():
-        roots.append(global_root)
-    return roots
+    migrate_local_learning_store_to_global(project_root)
+    root = global_learning_root()
+    return [root] if root.exists() else []
+
+
+def _copy_tree_files(source_root: Path, target_root: Path, pattern: str = "*") -> int:
+    copied = 0
+    if not source_root.exists():
+        return copied
+    for source in sorted(source_root.rglob(pattern)):
+        if not source.is_file():
+            continue
+        target = target_root / source.relative_to(source_root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            continue
+        shutil.copy2(source, target)
+        copied += 1
+    return copied
+
+
+def migrate_local_learning_store_to_global(project_root: Path) -> dict[str, int]:
+    project_root = project_root.resolve()
+    local_root = project_root / ".agent-learner"
+    ensure_global_learning_root()
+    counts = {
+        "events": _copy_tree_files(local_root / "events", agent_learner_home() / "events", "*.json"),
+        "candidates": _copy_tree_files(local_root / "candidates", agent_learner_home() / "candidates", "*.md"),
+        "history": _copy_tree_files(local_root / "history", agent_learner_home() / "history", "*.jsonl"),
+        "rules": _copy_tree_files(local_root / "learning", global_learning_root(), "*.md"),
+    }
+    write_storage_migration_marker(
+        project_root,
+        {
+            "migrated_from": str(local_root),
+            "canonical_root": str(agent_learner_home()),
+            "copied_counts": counts,
+        },
+    )
+    return counts
 
 
 def migrate_legacy_learning_assets(project_root: Path) -> list[Path]:

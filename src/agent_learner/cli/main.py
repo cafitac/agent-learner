@@ -27,6 +27,7 @@ from agent_learner.core.dashboard import build_dashboard_summary, write_dashboar
 from agent_learner.core.doctor import collect_dashboard_doctor, ensure_frontend_dist, format_doctor_text
 from agent_learner.core.indexing import rebuild_rule_index
 from agent_learner.core.events import build_learning_event, write_learning_event
+from agent_learner.core.repo_identity import detect_repo_identity
 from agent_learner.core.pipeline import (
     list_candidate_paths,
     load_candidate_record,
@@ -37,6 +38,7 @@ from agent_learner.core.pipeline import (
 from agent_learner.core.lifecycle import LearningLifecycle
 from agent_learner.core.models import LearningRule
 from agent_learner.core.storage import (
+    agent_learner_home,
     ensure_global_learning_root,
     global_history_path,
     global_learning_root,
@@ -633,15 +635,22 @@ def main() -> int:
             payload = {}
         except Exception:
             payload = {}
+        target_root = Path(args.project_root).resolve()
+        payload_cwd = Path(str(payload.get("cwd") or target_root)).resolve()
+        repo_identity = detect_repo_identity(payload_cwd)
         target = write_learning_event(
-            Path(args.project_root).resolve(),
+            target_root,
             build_learning_event(
                 adapter=args.adapter,
                 event_name=args.event_name,
-                cwd=str(Path(args.project_root).resolve()),
+                cwd=str(payload_cwd),
                 session_id=args.session_id,
                 transcript_path=args.transcript_path,
                 payload=payload,
+                repo_id=repo_identity.repo_id,
+                repo_root=repo_identity.repo_root,
+                worktree_path=repo_identity.worktree_path,
+                repo_remote_url=repo_identity.repo_remote_url,
             ),
         )
         print(target)
@@ -913,8 +922,9 @@ def main() -> int:
             check=False,
             env=env,
         )
-        event_files = sorted((target / ".agent-learner" / "events" / "claude").glob("*.json"))
-        candidate_files = sorted((target / ".agent-learner" / "candidates" / "claude").glob("*.md"))
+        storage_home = agent_learner_home()
+        event_files = sorted((storage_home / "events" / "claude").glob("*.json"))
+        candidate_files = sorted((storage_home / "candidates" / "claude").glob("*.md"))
         print(
             json.dumps(
                 {
@@ -1051,9 +1061,10 @@ def main() -> int:
                     "hooks_test_end_stdout": hooks_test_end.stdout.strip(),
                 }
             )
-        event_files = sorted((target / ".agent-learner" / "events" / "hermes").glob("*.json"))
-        candidate_files = sorted((target / ".agent-learner" / "candidates" / "hermes").glob("*.md"))
-        rule_files = sorted((target / ".agent-learner" / "learning" / "approved").glob("*.md"))
+        storage_home = agent_learner_home()
+        event_files = sorted((storage_home / "events" / "hermes").glob("*.json"))
+        candidate_files = sorted((storage_home / "candidates" / "hermes").glob("*.md"))
+        rule_files = sorted((resolve_learning_root(target) / "approved").glob("*.md"))
         prompt_payload = None
         prompt_stdout = prompt_result.stdout.strip()
         if prompt_stdout:

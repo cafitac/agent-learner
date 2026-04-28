@@ -13,10 +13,11 @@ from agent_learner.core.fanout import (
 )
 from agent_learner.core.lifecycle import LearningLifecycle
 from agent_learner.core.models import LearningRule
+from agent_learner.core.storage import canonical_learning_root, global_learning_root, resolve_learning_root
 
 
 def _promote_rule(tmp_path, name="test-rule", **kwargs):
-    root = Path(tmp_path) / ".agent-learner" / "learning"
+    root = resolve_learning_root(Path(tmp_path))
     lc = LearningLifecycle(root)
     rule = LearningRule(
         name=name, rule="test rule text", why="test why",

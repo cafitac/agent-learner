@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .repo_identity import detect_repo_identity
+
 PROJECT_MARKERS = ("pyproject.toml", "package.json", "go.mod", "Cargo.toml")
 CURRENT_MODEL_STATE_PATH = Path(".agent-learner/state/current-model.txt")
 
@@ -16,6 +18,10 @@ class ContextSnapshot:
     languages: list[str] = field(default_factory=list)
     frameworks: list[str] = field(default_factory=list)
     current_model: str | None = None
+    repo_id: str | None = None
+    repo_root: str | None = None
+    worktree_path: str | None = None
+    repo_remote_url: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, indent=2)
@@ -106,6 +112,7 @@ def write_current_model(project_root: Path, model: str) -> Path:
 def detect_context(cwd: Path) -> ContextSnapshot:
     resolved_cwd = cwd.resolve()
     project_root = detect_project_root(resolved_cwd) or resolved_cwd
+    repo_identity = detect_repo_identity(resolved_cwd)
     return ContextSnapshot(
         cwd=str(resolved_cwd),
         project_root=str(project_root),
@@ -113,4 +120,8 @@ def detect_context(cwd: Path) -> ContextSnapshot:
         languages=detect_languages(project_root),
         frameworks=detect_frameworks(project_root),
         current_model=read_current_model(project_root),
+        repo_id=repo_identity.repo_id,
+        repo_root=repo_identity.repo_root,
+        worktree_path=repo_identity.worktree_path,
+        repo_remote_url=repo_identity.repo_remote_url,
     )

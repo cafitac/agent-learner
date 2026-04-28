@@ -108,7 +108,10 @@ def retrieve_rules_for_project(project_root: Path, request: RetrievalRequest) ->
 def should_inject_rule(rule: LearningRule | RuleIndexEntry, context: ContextSnapshot | None) -> bool:
     if context is None:
         return True
-    if rule.projects and rule.projects != ["*"] and context.project_name not in rule.projects:
+    if getattr(rule, "repo_id", None) and context.repo_id and rule.repo_id != context.repo_id:
+        return False
+    project_aliases = {item for item in [context.project_name, Path(context.project_root).name if context.project_root else None] if item}
+    if rule.projects and rule.projects != ["*"] and not project_aliases.intersection(set(rule.projects)):
         return False
     if rule.languages and not any(language in context.languages for language in rule.languages):
         return False
