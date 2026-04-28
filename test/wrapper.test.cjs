@@ -110,7 +110,7 @@ test('buildExecutionPlan falls back to uvx without local core', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'qa', target: '/tmp/repo', json: false }, fakeRoot, '/tmp/repo');
   assert.equal(plan.mode, 'published');
   assert.equal(plan.command, 'uvx');
-  assert.deepEqual(plan.args, ['--from', 'agent-learner[web]', 'agent-learner', 'qa-codex-smoke', '--project-root', '/tmp/repo']);
+  assert.deepEqual(plan.args, ['--python', '3.11', '--from', 'agent-learner[web]', 'agent-learner', 'qa-codex-smoke', '--project-root', '/tmp/repo']);
 });
 
 test('buildExecutionPlan refreshes published core for codex install', () => {
@@ -118,7 +118,23 @@ test('buildExecutionPlan refreshes published core for codex install', () => {
   const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'install', target: null, scope: 'user', json: false }, fakeRoot, '/tmp/repo');
   assert.equal(plan.mode, 'published');
   assert.equal(plan.command, 'uvx');
-  assert.deepEqual(plan.args, ['--refresh', '--from', 'agent-learner[web]', 'agent-learner', 'bootstrap', '--adapters', 'codex', '--codex-scope', 'user']);
+  assert.deepEqual(plan.args, ['--refresh', '--python', '3.11', '--from', 'agent-learner[web]', 'agent-learner', 'bootstrap', '--adapters', 'codex', '--codex-scope', 'user']);
+});
+
+test('buildExecutionPlan honors uvx python override', () => {
+  const fakeRoot = path.join(__dirname, 'fixtures-no-pyproject');
+  const previous = process.env.AGENT_LEARNER_UVX_PYTHON;
+  process.env.AGENT_LEARNER_UVX_PYTHON = '3.13';
+  try {
+    const plan = buildExecutionPlan({ type: 'lane', lane: 'codex', action: 'qa', target: '/tmp/repo', json: false }, fakeRoot, '/tmp/repo');
+    assert.deepEqual(plan.args.slice(0, 4), ['--python', '3.13', '--from', 'agent-learner[web]']);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.AGENT_LEARNER_UVX_PYTHON;
+    } else {
+      process.env.AGENT_LEARNER_UVX_PYTHON = previous;
+    }
+  }
 });
 
 test('buildExecutionPlan honors uvx index override', () => {
@@ -129,7 +145,7 @@ test('buildExecutionPlan honors uvx index override', () => {
   process.env.AGENT_LEARNER_UVX_EXTRA_ARGS = '--with fastapi<1 --index-strategy unsafe-best-match';
   try {
     const plan = buildExecutionPlan({ type: 'dashboard', projectRoot: '/tmp/repo', build: false, noBuild: false, open: false, port: null }, fakeRoot, '/tmp/repo');
-    assert.deepEqual(plan.args.slice(0, 8), ['--from', 'agent-learner[web]', '--with', 'fastapi<1', '--index-strategy', 'unsafe-best-match', '--index', 'https://test.pypi.org/simple']);
+    assert.deepEqual(plan.args.slice(0, 10), ['--python', '3.11', '--from', 'agent-learner[web]', '--with', 'fastapi<1', '--index-strategy', 'unsafe-best-match', '--index', 'https://test.pypi.org/simple']);
   } finally {
     if (previous === undefined) {
       delete process.env.AGENT_LEARNER_UVX_INDEX_URL;
@@ -157,7 +173,7 @@ test('buildExecutionPlan maps dashboard to local uv run', () => {
 test('publishedCoreProbe parses successful doctor json', () => {
   const fakeRunner = (tool, args) => {
     assert.equal(tool, 'uvx');
-    assert.equal(args[0], '--from');
+    assert.deepEqual(args.slice(0, 4), ['--python', '3.11', '--from', 'agent-learner[web]']);
     return {
       status: 0,
       stdout: JSON.stringify({ can_run_now: true, verdict: 'READY', remediations: [] }),
