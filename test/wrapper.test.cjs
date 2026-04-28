@@ -302,12 +302,17 @@ test('printHelp advertises bootstrap as the install path', () => {
   assert.doesNotMatch(output, /install-claude/);
 });
 
-test('runWrapperUpdate prefers the npm next to the active node executable', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-learner-wrapper-update-'));
-  const binDir = path.join(tempRoot, 'bin');
-  fs.mkdirSync(binDir, { recursive: true });
-  const nodeExecutable = path.join(binDir, process.platform === 'win32' ? 'node.exe' : 'node');
-  const npmExecutable = path.join(binDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
+test('runWrapperUpdate prefers the npm next to the wrapper script when node comes from a different PATH entry', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-learner-wrapper-script-update-'));
+  const wrapperBinDir = path.join(tempRoot, 'nvm-bin');
+  const systemBinDir = path.join(tempRoot, 'system-bin');
+  fs.mkdirSync(wrapperBinDir, { recursive: true });
+  fs.mkdirSync(systemBinDir, { recursive: true });
+
+  const wrapperExecutable = path.join(wrapperBinDir, process.platform === 'win32' ? 'agent-learner.cmd' : 'agent-learner');
+  const nodeExecutable = path.join(systemBinDir, process.platform === 'win32' ? 'node.exe' : 'node');
+  const npmExecutable = path.join(wrapperBinDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
+  fs.writeFileSync(wrapperExecutable, '');
   fs.writeFileSync(nodeExecutable, '');
   fs.writeFileSync(npmExecutable, '');
 
@@ -316,7 +321,8 @@ test('runWrapperUpdate prefers the npm next to the active node executable', () =
     calls.push({ tool, args });
     return { status: 0, stdout: '', stderr: '' };
   };
-  assert.equal(runWrapperUpdate('pipe', fakeRunner, nodeExecutable), 0);
+
+  assert.equal(runWrapperUpdate('pipe', fakeRunner, nodeExecutable, wrapperExecutable), 0);
   assert.deepEqual(calls[0], {
     tool: npmExecutable,
     args: ['install', '-g', '@cafitac/agent-learner@latest']
