@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and is intentionally lightweight whil
 
 ## [Unreleased]
 
+## [0.3.25] - 2026-04-28
+
 ### Added
 - `agent-learner storage-doctor` and alias `agent-learner audit-storage-layout` report the canonical `AGENT_LEARNER_HOME`, global artifact counts, legacy/local source state, migration marker details, warnings, and suggested next commands without mutating storage.
 
