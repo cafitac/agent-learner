@@ -143,6 +143,28 @@ def test_storage_doctor_reports_global_counts_and_legacy_sources(monkeypatch, tm
     assert any(command.startswith("agent-learner process-events --project-root") for command in payload["next_commands"])
 
 
+def test_storage_doctor_guides_legacy_codex_learning_migration(monkeypatch, tmp_path: Path, capsys) -> None:
+    legacy_draft = tmp_path / ".codex" / "references" / "learning" / "drafts" / "legacy-draft.md"
+    legacy_draft.parent.mkdir(parents=True)
+    legacy_draft.write_text("# Legacy draft\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["agent-learner", "storage-doctor", "--project-root", str(tmp_path), "--format", "json"],
+    )
+    assert cli_main() == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    codex_source = next(item for item in payload["legacy_sources"] if item["kind"] == "legacy_codex_learning")
+    assert codex_source["unmirrored_files_count"] == 1
+    assert codex_source["sample_unmirrored_files"] == [str(legacy_draft)]
+    warning = next(item for item in payload["warnings"] if item["path"] == str(legacy_draft.parents[1]))
+    assert warning["code"] == "legacy_codex_learning_unmigrated"
+    assert warning["next_command"] == f"agent-learner bootstrap --target {tmp_path.resolve()} --adapters codex --codex-scope project"
+    assert payload["next_commands"][0] == warning["next_command"]
+    assert legacy_draft.exists() is True
+
+
 def test_storage_doctor_is_read_only_for_unmigrated_local_source(monkeypatch, tmp_path: Path, capsys) -> None:
     local_event = tmp_path / ".agent-learner" / "events" / "hermes" / "session_end-1.json"
     local_event.parent.mkdir(parents=True)
