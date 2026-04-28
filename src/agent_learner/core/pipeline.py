@@ -25,7 +25,7 @@ TEXT_VALUE_KEYS = {
     "content",
 }
 COMPARISON_STATUSES = ["approved", "needs_review"]
-GENERIC_REJECTION_TERMS = {"careful", "quality", "best", "good", "clean", "properly", "appropriate"}
+GENERIC_REJECTION_TERMS = {"careful", "quality", "best", "good", "clean", "helpful", "process", "properly", "appropriate"}
 NEGATION_TERMS = {"never", "not", "avoid", "except", "unless", "dont", "no"}
 STOPWORDS = {"a", "an", "and", "be", "for", "the", "to", "with", "when", "whenever", "always"}
 OPERATIONAL_CONTEXT_TERMS = {

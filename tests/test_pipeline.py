@@ -377,6 +377,31 @@ def test_process_events_rejects_generic_candidate_and_writes_rejection_ledger(tm
     assert '"action": "reject_candidate"' in ledger
 
 
+def test_process_events_rejects_real_runtime_generic_helpful_process_candidate(tmp_path: Path) -> None:
+    transcript = tmp_path / "session.jsonl"
+    message = "Always keep the process clean and helpful."
+    transcript.write_text(json.dumps({"message": message}) + "\n", encoding="utf-8")
+    write_learning_event(
+        tmp_path,
+        build_learning_event(
+            adapter="hermes",
+            event_name="session_end",
+            cwd=str(tmp_path),
+            session_id="reject-real-1",
+            transcript_path=str(transcript),
+            payload={"message": message},
+        ),
+    )
+
+    results = process_unprocessed_events(tmp_path, adapter="hermes")
+    assert results[0].status == "candidate_rejected"
+    assert results[0].decision == "reject_candidate"
+    candidate_record = load_candidate_record(Path(results[0].candidate_path or ""))
+    assert candidate_record.status == "rejected_candidate"
+    assert candidate_record.candidate.decision_reason == "candidate signal is too generic to become a durable rule"
+
+
+
 def test_process_events_keeps_operational_debug_note_in_candidate_queue_until_repeated(tmp_path: Path) -> None:
     transcript = tmp_path / "session.jsonl"
     message = "Always distinguish OMX hook messages from AgentLearner hook messages when debugging Codex installs."
